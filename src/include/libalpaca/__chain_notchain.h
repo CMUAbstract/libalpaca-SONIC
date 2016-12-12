@@ -12,6 +12,7 @@
 #define CHAN_NAME_SIZE 32
 
 #define MAX_DIRTY_SELF_FIELDS 4
+#define MAX_DIRTY_GV_SIZE 300 //temp
 
 typedef void (task_func_t)(void);
 typedef unsigned chain_time_t;
@@ -29,8 +30,9 @@ typedef enum {
 
 // TODO: include diag fields only when diagnostics are enabled
 typedef struct _chan_diag_t {
-    char source_name[CHAN_NAME_SIZE];
-    char dest_name[CHAN_NAME_SIZE];
+//    char source_name[CHAN_NAME_SIZE];
+//    char dest_name[CHAN_NAME_SIZE];
+//    char name[CHAN_NAME_SIZE];
 } chan_diag_t;
 
 typedef struct _chan_meta_t {
@@ -38,9 +40,9 @@ typedef struct _chan_meta_t {
     chan_diag_t diag;
 } chan_meta_t;
 
-typedef struct _var_meta_t {
-    chain_time_t timestamp;
-} var_meta_t;
+//typedef struct _var_meta_t {
+//    chain_time_t timestamp;
+//} var_meta_t;
 
 typedef struct _self_field_meta_t {
     // Single word (two bytes) value that contains
@@ -62,8 +64,8 @@ typedef struct {
     // chan_out. The out value is "staged" in the alternate buffer of
     // the self-channel double-buffer pair for each field. On transition,
     // the buffer index is flipped for dirty fields.
-    self_field_meta_t *dirty_self_fields[MAX_DIRTY_SELF_FIELDS];
-    volatile unsigned num_dirty_self_fields;
+  //  self_field_meta_t *dirty_self_fields[MAX_DIRTY_SELF_FIELDS];
+  //  volatile unsigned num_dirty_self_fields;
 
     volatile chain_time_t last_execute_time; // to execute prologue only once
 
@@ -77,7 +79,6 @@ typedef struct {
 
 #define VAR_TYPE(type) \
     struct { \
-        var_meta_t meta; \
         type value; \
     } \
 
@@ -97,6 +98,13 @@ typedef struct {
         chan_meta_t meta; \
         struct type data; \
     }
+//KWMAENG
+#define GV_INIT(type) \
+    struct _gv_  ## type ## _ { \
+        chan_meta_t meta; \
+        struct type data; \
+    }
+//KWMAENG
 
 /** @brief Declare a value transmittable over a channel
  *  @param  type    Type of the field value
@@ -112,6 +120,7 @@ typedef struct {
  *  TODO: could CHAN_FIELD be a special case of CHAN_FIELD_ARRARY with size = 1?
  */
 #define CHAN_FIELD(type, name)                  FIELD_TYPE(type) name
+//#define CHAN_FIELD_ARRAY(type, name, size)      FIELD_TYPE(type) name[size]
 #define CHAN_FIELD_ARRAY(type, name, size)      FIELD_TYPE(type) name[size]
 #define SELF_CHAN_FIELD(type, name)             SELF_FIELD_TYPE(type) name
 #define SELF_CHAN_FIELD_ARRAY(type, name, size) SELF_FIELD_TYPE(type) name[size]
@@ -127,6 +136,13 @@ typedef struct _context_t {
     // TODO: move this to top, just feels cleaner
     struct _context_t *next_ctx;
 } context_t;
+
+//KWMAENG: dirty list is kept outsize
+extern self_field_meta_t *dirty_gv[MAX_DIRTY_GV_SIZE];
+extern volatile unsigned num_dirty_gv;
+extern unsigned rcount;
+extern unsigned wcount;
+extern unsigned tcount;
 
 extern context_t * volatile curctx;
 
@@ -150,7 +166,7 @@ extern context_t * volatile curctx;
  */
 #define TASK(idx, func) \
     void func(); \
-    __nv task_t TASK_SYM_NAME(func) = { func, (1UL << idx), idx, {0}, 0, 0, #func }; \
+    __nv task_t TASK_SYM_NAME(func) = { func, (1UL << idx), idx, 0, #func }; \
 
 #define TASK_REF(func) &TASK_SYM_NAME(func)
 
@@ -227,13 +243,30 @@ void chan_out(const char *field_name, const void *value,
 #define SELF_FIELDS_INITIALIZER_INNER(type) FIELD_INIT_ ## type
 #define SELF_FIELDS_INITIALIZER(type) SELF_FIELDS_INITIALIZER_INNER(type)
 
+//#define CHANNEL(src, dest, type, size) \
+//    __nv CH_TYPE(src, dest, type) _ch_ ## src ## _ ## dest __address(size) = \
+//        { { CHAN_TYPE_T2T, { #src, #dest } } }
+
 #define CHANNEL(src, dest, type) \
     __nv CH_TYPE(src, dest, type) _ch_ ## src ## _ ## dest = \
         { { CHAN_TYPE_T2T, { #src, #dest } } }
 
+//#define CHANNEL(src, dest, type) \
+//    __nv CH_TYPE(src, dest, type) _ch_ ## src ## _ ## dest = \
+//        { { CHAN_TYPE_T2T, { #src, #dest } } }
+
 #define SELF_CHANNEL(task, type) \
     __nv CH_TYPE(task, task, type) _ch_ ## task ## _ ## task = \
         { { CHAN_TYPE_SELF, { #task, #task } }, SELF_FIELDS_INITIALIZER(type) }
+
+//KWMAENG: new data type. 
+#define GLOBAL_VAR(type) \
+    __nv GV_INIT(type) _gv_ ## type = \
+        { { CHAN_TYPE_SELF, { #type } }, SELF_FIELDS_INITIALIZER(type) }
+#define GLOBAL_SB(type) \
+    __nv GV_INIT(type) _gv_ ## type = \
+        { { CHAN_TYPE_T2T, { #type } } }
+//KWMAENG
 
 /** @brief Declare a channel for passing arguments to a callable task
  *  @details Callers would output values into this channels before
@@ -277,7 +310,9 @@ void chan_out(const char *field_name, const void *value,
 
 #define CH(src, dest) (&_ch_ ## src ## _ ## dest)
 #define SELF_CH(tsk)  CH(tsk, tsk)
-
+//KWMAENG
+#define GV(type)  (&_gv_ ## type)
+//KWMAENG
 /* For compatibility */
 #define SELF_IN_CH(tsk)  CH(tsk, tsk)
 #define SELF_OUT_CH(tsk) CH(tsk, tsk)
@@ -330,6 +365,9 @@ void chan_out(const char *field_name, const void *value,
 #define CHAN_IN1(type, field, chan0) \
     ((type*)((unsigned char *)chan_in(#field, sizeof(VAR_TYPE(type)), 1, \
           chan0, offsetof(__typeof__(chan0->data), field))))
+#define CHAN_IN_TEST(type, field, chan0, chan_overwrite) \
+    ((type*)((unsigned char *)chan_in(#field, sizeof(VAR_TYPE(type)), 1, \
+          chan_overwrite, offsetof(__typeof__(chan0->data), field))))
 #define CHAN_IN2(type, field, chan0, chan1) \
     ((type*)((unsigned char *)chan_in(#field, sizeof(VAR_TYPE(type)), 2, \
           chan0, offsetof(__typeof__(chan0->data), field), \
@@ -361,6 +399,9 @@ void chan_out(const char *field_name, const void *value,
 #define CHAN_OUT1(type, field, val, chan0) \
     chan_out(#field, &val, sizeof(VAR_TYPE(type)), 1, \
              chan0, offsetof(__typeof__(chan0->data), field))
+#define CHAN_OUT_TEST(type, field, val, chan0, chan_overwrite) \
+    chan_out(#field, &val, sizeof(VAR_TYPE(type)), 1, \
+             chan_overwrite, offsetof(__typeof__(chan0->data), field))
 #define CHAN_OUT2(type, field, val, chan0, chan1) \
     chan_out(#field, &val, sizeof(VAR_TYPE(type)), 2, \
              chan0, offsetof(__typeof__(chan0->data), field), \
@@ -388,5 +429,4 @@ void chan_out(const char *field_name, const void *value,
  *  @param task     Name of the task function
  *  */
 #define TRANSITION_TO(task) transition_to(TASK_REF(task))
-
 #endif // CHAIN_H

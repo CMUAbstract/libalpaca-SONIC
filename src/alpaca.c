@@ -10,7 +10,7 @@
 #define LIBCHAIN_PRINTF printf
 #endif
 
-#include "chain.h"
+#include "alpaca.h"
 #if SBUF > 0
 __nv uint8_t* dirty_arr[MAX_DIRTY_ARR_SIZE];
 __nv volatile unsigned num_arr=0;
@@ -68,7 +68,7 @@ void task_prologue()
 #if COUNT > 0
 	tcount++;
 #endif
-#if CTIME > 0
+#if WTGTIME > 0
 	TBCTL |= 0x0020; //start timer
 #endif
 //    task_t *curtask = curctx->task;
@@ -77,15 +77,7 @@ void task_prologue()
 	//name curtask for compliance of previous code. Actually it is PREVIOUS TASK!
 	//and since curctx's next is currently pointing on previous ctx, it should work!
 
-//	LOG("0\r\n");
-
-    // Swaps of the self-channel buffer happen on transitions, not restarts.
-    // We detect transitions by comparing the current time with a timestamp.
 	if (curctx->time != curtask->last_execute_time) {
-
-        // Minimize FRAM reads
-//        self_field_meta_t **dirty_self_fields = curtask->dirty_self_fields;
-//        self_field_meta_t **dirty_self_fields = dirty_gv;
 #if GBUF == 0
         int i;
 #endif
@@ -165,7 +157,7 @@ void task_prologue()
 	num_dirty_gv=0;
 #endif
 	}
-#if CTIME > 0
+#if WTGTIME > 0
 	TBCTL &= ~(0x0020); //halt timer
 #endif
 }
@@ -394,6 +386,9 @@ void chan_out(const void *value,
 void write_to_gbuf(uint8_t *value, uint8_t *data_addr, size_t var_size) 
 //void write_to_gbuf(const void *value, void* data_addr, size_t var_size) 
 {
+#if WTGTIME > 0
+	TBCTL |= 0x0020; //start timer
+#endif
 	LOG("WRITE TO GBUF!!\r\n");
 	LOG("WRITE: address of curPointer: %u\r\n", data_addr);
 	memcpy(&data[num_dirty_gv], value, var_size);
@@ -411,6 +406,9 @@ void write_to_gbuf(uint8_t *value, uint8_t *data_addr, size_t var_size)
 	else {
 		num_dirty_gv++;
 	}
+#if WTGTIME > 0
+	TBCTL &= ~(0x0020); //halt timer
+#endif
 }
 
 void chan_out_gbuf(const void *value,
