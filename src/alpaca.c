@@ -16,9 +16,12 @@ __nv uint8_t* dirty_arr[MAX_DIRTY_ARR_SIZE];
 __nv volatile unsigned num_arr=0;
 #endif
 #if GBUF > 0
-__nv unsigned data[MAX_DIRTY_GV_SIZE];
-__nv uint8_t* data_dest[MAX_DIRTY_GV_SIZE];
-__nv unsigned data_size[MAX_DIRTY_GV_SIZE];
+//__nv unsigned data[MAX_DIRTY_GV_SIZE];
+//__nv uint8_t* data_dest[MAX_DIRTY_GV_SIZE];
+//__nv unsigned data_size[MAX_DIRTY_GV_SIZE];
+__nv unsigned* data_base;
+__nv uint8_t** data_dest_base;
+__nv unsigned* data_size_base;
 __nv volatile unsigned gv_index=0;
 #else
 #if SBUF > 0
@@ -60,6 +63,19 @@ __nv context_t * volatile curctx = &context_0;
 // for internal instrumentation purposes
 __nv volatile unsigned _numBoots = 0;
 
+/*
+void set_dirty_buf(){
+	data_base = &data;
+	data_dest_base = &data_dest;
+	data_size_base = &data_size;
+}*/
+
+void set_dirty_buf(unsigned* db, uint8_t** ddb, unsigned* dsb){
+	data_base = db;
+	data_dest_base = ddb;
+	data_size_base = dsb;
+}
+
 /**
  * @brief Function to be invoked at the beginning of every task
  */
@@ -96,11 +112,13 @@ void task_prologue()
 #else
 	while (gv_index < num_dirty_gv) {
 	    //GBUF here!
-		uint8_t* w_data_dest = data_dest[gv_index];
+		uint8_t* w_data_dest = *(data_dest_base+gv_index);
 		if (w_data_dest != 0) { //the entry is valid. if 0, it is not-the-head part of struct. ignore!
 			//unsigned w_data = data[i];
-			unsigned w_data_size = data_size[gv_index];
-			memcpy(w_data_dest, &data[gv_index], w_data_size);
+			//unsigned w_data_size = data_size[gv_index];
+			unsigned w_data_size = *(data_size_base + gv_index);
+			//memcpy(w_data_dest, &data[gv_index], w_data_size);
+			memcpy(w_data_dest, data_base+gv_index, w_data_size);
 			LOG("final data: %u\r\n",*((unsigned*)w_data_dest));
 		}
             	++gv_index;
@@ -236,153 +254,6 @@ void transition_to(task_t *next_task)
     //     br next_task
 }
 
-/** @brief Sync: return the most recently updated value of a given field
- *  @param field_name   string name of the field, used for diagnostics
- *  @param var_size     size of the 'variable' type (var_meta_t + value type)
- *  @param count        number of channels to sync
- *  @param ...          channel ptr, field offset in corresponding message type
- *  @return Pointer to the value, ready to be cast to final value type pointer
- */
-void *chan_in(size_t var_size, uint8_t* chan, size_t field_offset)
-{
-#if COUNT > 0
-	rcount++;
-#endif
-#if RTIME > 0
-	TBCTL |= 0x0020; //start timer
-#endif
-    unsigned i;
-    unsigned latest_update = 0;
-    uint8_t* value;
-#ifdef LIBCHAIN_ENABLE_DIAGNOSTICS
-    unsigned latest_chan_idx = 0;
-    char curidx;
-#endif
-
-        uint8_t *chan_data = chan + offsetof(CH_TYPE(_sa, _da, _void_type_t), data);
-        chan_meta_t *chan_meta = (chan_meta_t *)(chan +
-                                    offsetof(CH_TYPE(_sb, _db, _void_type_t), meta));
-        uint8_t *field = chan_data + field_offset;
-    	LOG("READ chan: %u\r\n", chan);
-    	LOG("READ chan data: %u\r\n", chan_data);
-    	LOG("READ field offset: %u\r\n", field_offset);
-    	LOG("READ field: %u\r\n", field);
-#if COUNT > 0
-	LOG("read: %s\r\n",(chan_meta->diag).name);
-#endif
-#if GBUF == 0 
-	// for double buffer read
-        switch (chan_meta->type) {
-            case CHAN_TYPE_SELF: {
-                self_field_meta_t *self_field = (self_field_meta_t *)field;
-		LOG("self read: %u\r\n",self_field->idx_pair & SELF_CHAN_IDX_BIT_NEXT);
-
-                unsigned var_offset =
-                    (self_field->idx_pair & SELF_CHAN_IDX_BIT_CURRENT) ? var_size : 0;
-        	value = (uint8_t *)(field + offsetof(SELF_FIELD_TYPE(void_type_t), var) + var_offset) + offsetof(VAR_TYPE(void_type_t), value);
-                break;
-            }
-            default:
-        	value = (uint8_t *)(field + offsetof(FIELD_TYPE(void_type_t), var)) + offsetof(VAR_TYPE(void_type_t), value);
-                break;
-        }
-#else
-	//GBUF don't have double buffer. Just read!!
-	value = (uint8_t *)(field + offsetof(FIELD_TYPE(void_type_t), var)) + offsetof(VAR_TYPE(void_type_t), value);
-	LOG("READ: address of curPointer: %u\r\n", value);
-#endif
-
-#if RTIME > 0
-	TBCTL &= ~(0x0020); //halt timer
-#endif
-    return (void *)value;
-}
-
-/** @brief Write a value to a field in a channel
- *  @param field_name    string name of the field, used for diagnostics
- *  @param value         pointer to value data
- *  @param var_size      size of the 'variable' type (var_meta_t + value type)
- *  @param count         number of output channels
- *  @param ...           channel ptr, field offset in corresponding message type
- */
-void chan_out(const void *value,
-              size_t var_size, uint8_t* chan, size_t field_offset, ...)
-{
-#if COUNT > 0
-	wcount++;
-#endif
-#if WTIME > 0
-	TBCTL |= 0x0020; //start timer
-#endif
-    va_list ap;
-    int i;
-    void* var_value;
-//    var_meta_t *var;
-#ifdef LIBCHAIN_ENABLE_DIAGNOSTICS
-    char curidx;
-#endif
-
-#if SBUF > 0
-    va_start(ap, field_offset);
-#endif
-        uint8_t *chan_data = chan + offsetof(CH_TYPE(_sa, _da, _void_type_t), data);
-        chan_meta_t *chan_meta = (chan_meta_t *)(chan +
-                                    offsetof(CH_TYPE(_sb, _db, _void_type_t), meta));
-        uint8_t *field = chan_data + field_offset;
-#if COUNT > 0
-	LOG("write: %s\r\n",(chan_meta->diag).name);
-#endif
-	LOG("WRITE: %u\r\n", chan_meta->type);
-
-#if GBUF == 0
-                self_field_meta_t *self_field = (self_field_meta_t *)field;
-		LOG("self write: %u\r\n",self_field->idx_pair & SELF_CHAN_IDX_BIT_NEXT);
-                unsigned var_offset =
-                    (self_field->idx_pair & SELF_CHAN_IDX_BIT_NEXT) ? var_size : 0;
-
-        	var_value = (uint8_t *)(field + offsetof(SELF_FIELD_TYPE(void_type_t), var) + var_offset) + offsetof(VAR_TYPE(void_type_t), value);
-                self_field->idx_pair &= ~(SELF_CHAN_IDX_BIT_DIRTY_NEXT);
-                self_field->idx_pair |= SELF_CHAN_IDX_BIT_DIRTY_CURRENT;
-                dirty_gv[num_dirty_gv++] = self_field;
-        	memcpy(var_value, value, var_size);
-#endif
-#if COUNT > 0
-		if(num_dirty_gv > max_num_dirty_gv) max_num_dirty_gv = num_dirty_gv;
-#endif
-#if SBUF > 0
-        	size_t num_dirty_arr_offset = va_arg(ap, unsigned);
-        	size_t buffer_offset = va_arg(ap, unsigned);
-        	size_t pointer_offset = va_arg(ap, unsigned);
-		unsigned* num_dirty_arr = chan_data + num_dirty_arr_offset;
-		uint16_t* pointer = chan_data + pointer_offset;
-		uint8_t* buffer = chan_data + buffer_offset;
-		uint8_t isAlreadyIn=0;
-		for (unsigned i =0; i<num_arr; i++){
-			if (dirty_arr[i]==(uint8_t*)chan) isAlreadyIn=1;
-			LOG("already in\r\n");
-		}
-		if(!isAlreadyIn) {
-			dirty_arr[num_arr++]=(uint8_t*)chan;
-			LOG("not already in\r\n");
-		}
-		self_field_meta_t *self_field = (self_field_meta_t *)field;
-
-        	*(pointer+(*num_dirty_arr)) = (uint8_t *)(field + offsetof(FIELD_TYPE(void_type_t), var)) + offsetof(VAR_TYPE(void_type_t), value); //points to location to write
-        	var_value = (uint8_t *)(buffer + var_size*(*num_dirty_arr)); //points to buffer
-        	memcpy(var_value, value, var_size);
-		
-		(*num_dirty_arr)++;
-#endif
-        	var_value = (uint8_t *)(field + offsetof(FIELD_TYPE(void_type_t), var)) + offsetof(VAR_TYPE(void_type_t), value);
-        	memcpy(var_value, value, var_size);
-
-#if SBUF > 0
-    va_end(ap);
-#endif
-#if WTIME > 0
-	TBCTL &= ~(0x0020); //halt timer
-#endif
-}
 void write_to_gbuf(uint8_t *value, uint8_t *data_addr, size_t var_size) 
 //void write_to_gbuf(const void *value, void* data_addr, size_t var_size) 
 {
@@ -391,15 +262,18 @@ void write_to_gbuf(uint8_t *value, uint8_t *data_addr, size_t var_size)
 #endif
 	LOG("WRITE TO GBUF!!\r\n");
 	LOG("WRITE: address of curPointer: %u\r\n", data_addr);
-	memcpy(&data[num_dirty_gv], value, var_size);
-	data_size[num_dirty_gv] = var_size;
-	data_dest[num_dirty_gv] = data_addr;
-	if (var_size > sizeof(data[num_dirty_gv])) { //if data is struct, it may go beyond unsigned. In that case, invalidate succeeding values
-		unsigned quotient = (unsigned)((var_size-1)/sizeof(data[num_dirty_gv]))+1;	
+	//memcpy(&data[num_dirty_gv], value, var_size);
+	//data_size[num_dirty_gv] = var_size;
+	//data_dest[num_dirty_gv] = data_addr;
+	memcpy(data_base + num_dirty_gv, value, var_size);
+	*(data_size_base+num_dirty_gv) = var_size;
+	*(data_dest_base+num_dirty_gv) = data_addr;
+	if (var_size > sizeof(*(data_base + num_dirty_gv))) { //if data is struct, it may go beyond unsigned. In that case, invalidate succeeding values
+		unsigned quotient = (unsigned)((var_size-1)/sizeof(*(data_base + num_dirty_gv)))+1;	
 		LOG("quotient: %u\r\n",quotient);
 		for (unsigned i=1;i<quotient;++i) { //note: starts from 1, not 0
 			//data_size[num_dirty_gv+i]=0; //size doesn't matter! trash anyways
-			data_dest[num_dirty_gv+i]=0;
+			*(data_dest_base + num_dirty_gv+i)=0;
 		}
 		num_dirty_gv += quotient;
 	}
@@ -407,106 +281,6 @@ void write_to_gbuf(uint8_t *value, uint8_t *data_addr, size_t var_size)
 		num_dirty_gv++;
 	}
 #if WTGTIME > 0
-	TBCTL &= ~(0x0020); //halt timer
-#endif
-}
-
-void chan_out_gbuf(const void *value,
-              size_t var_size, uint8_t* chan, size_t field_offset, ...)
-{
-#if COUNT > 0
-	wcount++;
-#endif
-#if WTIME > 0
-	TBCTL |= 0x0020; //start timer
-#endif
-    va_list ap;
-    int i;
-    void* var_value;
-//    var_meta_t *var;
-#ifdef LIBCHAIN_ENABLE_DIAGNOSTICS
-    char curidx;
-#endif
-
-#if SBUF > 0
-    va_start(ap, field_offset);
-#endif
-    	LOG("WRITE chan: %u\r\n", chan);
-    	//LOG("WRITE field: %u\r\n", field);
-        uint8_t *chan_data = chan + offsetof(CH_TYPE(_sa, _da, _void_type_t), data);
-        chan_meta_t *chan_meta = (chan_meta_t *)(chan +
-                                    offsetof(CH_TYPE(_sb, _db, _void_type_t), meta));
-        uint8_t *field = chan_data + field_offset;
-    	LOG("WRITE chan data: %u\r\n", chan_data);
-    	LOG("WRITE field offset: %u\r\n", field_offset);
-    	LOG("WRITE field: %u\r\n", field);
-#if COUNT > 0
-	LOG("write: %s\r\n",(chan_meta->diag).name);
-#endif
-#if GBUF == 0
-                self_field_meta_t *self_field = (self_field_meta_t *)field;
-		LOG("self write: %u\r\n",self_field->idx_pair & SELF_CHAN_IDX_BIT_NEXT);
-                unsigned var_offset =
-                    (self_field->idx_pair & SELF_CHAN_IDX_BIT_NEXT) ? var_size : 0;
-
-        	var_value = (uint8_t *)(field + offsetof(SELF_FIELD_TYPE(void_type_t), var) + var_offset) + offsetof(VAR_TYPE(void_type_t), value);
-                self_field->idx_pair &= ~(SELF_CHAN_IDX_BIT_DIRTY_NEXT);
-                self_field->idx_pair |= SELF_CHAN_IDX_BIT_DIRTY_CURRENT;
-                dirty_gv[num_dirty_gv++] = self_field;
-        	memcpy(var_value, value, var_size);
-#else
-		//this is for GBUF
-		memcpy(&data[num_dirty_gv], value, var_size);
-                data_size[num_dirty_gv] = var_size;
-        	var_value = (uint8_t *)(field + offsetof(FIELD_TYPE(void_type_t), var)) + offsetof(VAR_TYPE(void_type_t), value);
-		data_dest[num_dirty_gv] = var_value;
-		LOG("WRITE: address of curPointer: %u\r\n", var_value);
-		if (var_size > sizeof(data[num_dirty_gv])) { //if data is struct, it may go beyond unsigned. In that case, invalidate succeeding values
-			LOG("var_size %u is larger than %u\r\n",var_size,sizeof(data[num_dirty_gv]));
-			unsigned quotient = (unsigned)((var_size-1)/sizeof(data[num_dirty_gv]))+1;	
-			LOG("quotient: %u\r\n",quotient);
-			for (unsigned i=1;i<quotient;++i) { //note: starts from 1, not 0
-				//data_size[num_dirty_gv+i]=0; //size doesn't matter! trash anyways
-				data_dest[num_dirty_gv+i]=0;
-			}
-			num_dirty_gv += quotient;
-		}
-		else {
-			num_dirty_gv++;
-		}
-#endif
-#if COUNT > 0
-		if(num_dirty_gv > max_num_dirty_gv) max_num_dirty_gv = num_dirty_gv;
-#endif
-#if SBUF > 0
-        	size_t num_dirty_arr_offset = va_arg(ap, unsigned);
-        	size_t buffer_offset = va_arg(ap, unsigned);
-        	size_t pointer_offset = va_arg(ap, unsigned);
-		unsigned* num_dirty_arr = chan_data + num_dirty_arr_offset;
-		uint16_t* pointer = chan_data + pointer_offset;
-		uint8_t* buffer = chan_data + buffer_offset;
-		uint8_t isAlreadyIn=0;
-		for (unsigned i =0; i<num_arr; i++){
-			if (dirty_arr[i]==(uint8_t*)chan) isAlreadyIn=1;
-			LOG("already in\r\n");
-		}
-		if(!isAlreadyIn) {
-			dirty_arr[num_arr++]=(uint8_t*)chan;
-			LOG("not already in\r\n");
-		}
-		self_field_meta_t *self_field = (self_field_meta_t *)field;
-
-        	*(pointer+(*num_dirty_arr)) = (uint8_t *)(field + offsetof(FIELD_TYPE(void_type_t), var)) + offsetof(VAR_TYPE(void_type_t), value); //points to location to write
-        	var_value = (uint8_t *)(buffer + var_size*(*num_dirty_arr)); //points to buffer
-        	memcpy(var_value, value, var_size);
-		
-		(*num_dirty_arr)++;
-#endif
-
-#if SBUF > 0
-    va_end(ap);
-#endif
-#if WTIME > 0
 	TBCTL &= ~(0x0020); //halt timer
 #endif
 }
