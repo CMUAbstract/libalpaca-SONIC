@@ -186,9 +186,9 @@ extern volatile unsigned num_arr;
 extern unsigned* data_base;
 extern uint8_t** data_dest_base;
 extern unsigned* data_size_base;
-//extern unsigned data[MAX_DIRTY_GV_SIZE];
-//extern uint8_t* data_dest[MAX_DIRTY_GV_SIZE];
-//extern unsigned data_size[MAX_DIRTY_GV_SIZE];
+extern unsigned data[];
+extern uint8_t* data_dest[];
+extern unsigned data_size[];
 #else
 extern self_field_meta_t *dirty_gv[MAX_DIRTY_GV_SIZE];
 extern volatile unsigned num_dirty_gv;
@@ -230,7 +230,8 @@ extern context_t * volatile curctx;
  */
 extern void init();
 
-extern void set_dirty_buf(unsigned* db, uint8_t** ddb, unsigned* dsb);
+extern void set_dirty_buf();
+//extern void set_dirty_buf(unsigned* db, uint8_t** ddb, unsigned* dsb);
 /** @brief First task to run when the application starts
  *  @details Symbol is defined by the ENTRY_TASK macro.
  *           This is not wrapped into a delaration macro, because applications

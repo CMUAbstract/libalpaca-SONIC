@@ -63,18 +63,18 @@ __nv context_t * volatile curctx = &context_0;
 // for internal instrumentation purposes
 __nv volatile unsigned _numBoots = 0;
 
-/*
+
 void set_dirty_buf(){
 	data_base = &data;
 	data_dest_base = &data_dest;
 	data_size_base = &data_size;
-}*/
-
+}
+/*
 void set_dirty_buf(unsigned* db, uint8_t** ddb, unsigned* dsb){
 	data_base = db;
 	data_dest_base = ddb;
 	data_size_base = dsb;
-}
+}*/
 
 /**
  * @brief Function to be invoked at the beginning of every task
