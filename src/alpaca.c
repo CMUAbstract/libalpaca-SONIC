@@ -19,9 +19,9 @@ __nv volatile unsigned num_arr=0;
 //__nv unsigned data[MAX_DIRTY_GV_SIZE];
 //__nv uint8_t* data_dest[MAX_DIRTY_GV_SIZE];
 //__nv unsigned data_size[MAX_DIRTY_GV_SIZE];
-__nv unsigned* data_base;
-__nv uint8_t** data_dest_base;
-__nv unsigned* data_size_base;
+__nv unsigned* data_base = &data;
+__nv uint8_t** data_dest_base = &data_dest;
+__nv unsigned* data_size_base = &data_size;
 __nv volatile unsigned gv_index=0;
 #else
 #if SBUF > 0
@@ -62,19 +62,6 @@ __nv context_t * volatile curctx = &context_0;
 
 // for internal instrumentation purposes
 __nv volatile unsigned _numBoots = 0;
-
-
-void set_dirty_buf(){
-	data_base = &data;
-	data_dest_base = &data_dest;
-	data_size_base = &data_size;
-}
-/*
-void set_dirty_buf(unsigned* db, uint8_t** ddb, unsigned* dsb){
-	data_base = db;
-	data_dest_base = ddb;
-	data_size_base = dsb;
-}*/
 
 /**
  * @brief Function to be invoked at the beginning of every task
