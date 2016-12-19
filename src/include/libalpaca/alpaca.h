@@ -180,25 +180,28 @@ extern uint8_t* dirty_arr[MAX_DIRTY_ARR_SIZE];
 extern volatile unsigned num_arr;
 #endif
 #if GBUF > 0
-//extern unsigned data[MAX_DIRTY_GV_SIZE];
-//extern uint8_t* data_dest[MAX_DIRTY_GV_SIZE];
-//extern unsigned data_size[MAX_DIRTY_GV_SIZE];
-extern unsigned* data_base;
-extern uint8_t** data_dest_base;
-extern unsigned* data_size_base;
 extern unsigned data[];
 extern uint8_t* data_dest[];
 extern unsigned data_size[];
+extern unsigned* data_base;
+extern uint8_t** data_dest_base;
+extern unsigned* data_size_base;
+//extern unsigned data[];
+//extern uint8_t* data_dest[];
+//extern unsigned data_size[];
 #else
 extern self_field_meta_t *dirty_gv[MAX_DIRTY_GV_SIZE];
-extern volatile unsigned num_dirty_gv;
 #endif
+extern volatile unsigned num_dirty_gv;
 extern unsigned rcount;
 extern unsigned wcount;
 extern unsigned tcount;
 extern unsigned max_num_dirty_gv;
 
 extern context_t * volatile curctx;
+
+
+
 
 /** @brief Internal macro for constructing name of task symbol */
 #define TASK_SYM_NAME(func) _task_ ## func
@@ -224,6 +227,7 @@ extern context_t * volatile curctx;
 
 #define TASK_REF(func) &TASK_SYM_NAME(func)
 
+extern void set_dirty_buf(unsigned* data_base_val, uint8_t** data_dest_base_val, unsigned* data_size_base_val);
 /** @brief Function called on every reboot
  *  @details This function usually initializes hardware, such as GPIO
  *           direction. The application must define this function.
@@ -277,6 +281,7 @@ void transition_to(task_t *task);
 void *chan_in(size_t var_size, uint8_t* chan, size_t field_offset);
 void *chan_in_again(size_t var_size, uint8_t* chan, size_t field_offset, ...);
 void write_to_gbuf(uint8_t *value, uint8_t *data_addr, size_t var_size); 
+void modify_gbuf(uint8_t *value, size_t var_size, unsigned index); 
 void chan_out(const void *value,
               size_t var_size, uint8_t* chan, size_t field_offset, ...);
 void chan_out_gbuf(const void *value,

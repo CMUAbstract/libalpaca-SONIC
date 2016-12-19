@@ -16,9 +16,12 @@ __nv uint8_t* dirty_arr[MAX_DIRTY_ARR_SIZE];
 __nv volatile unsigned num_arr=0;
 #endif
 #if GBUF > 0
-//__nv unsigned data[MAX_DIRTY_GV_SIZE];
-//__nv uint8_t* data_dest[MAX_DIRTY_GV_SIZE];
-//__nv unsigned data_size[MAX_DIRTY_GV_SIZE];
+//__nv unsigned datalib[520];
+//__nv uint8_t* data_destlib[520];
+//__nv unsigned data_sizelib[520];
+//__nv unsigned* data_base;
+//__nv uint8_t** data_dest_base;
+//__nv unsigned* data_size_base;
 __nv unsigned* data_base = &data;
 __nv uint8_t** data_dest_base = &data_dest;
 __nv unsigned* data_size_base = &data_size;
@@ -62,7 +65,11 @@ __nv context_t * volatile curctx = &context_0;
 
 // for internal instrumentation purposes
 __nv volatile unsigned _numBoots = 0;
-
+void set_dirty_buf(unsigned* data_base_val, uint8_t** data_dest_base_val, unsigned* data_size_base_val){
+	data_base = data_base_val;
+	data_dest_base = data_dest_base_val;
+	data_size_base = data_size_base_val;
+}
 /**
  * @brief Function to be invoked at the beginning of every task
  */
@@ -224,7 +231,7 @@ void transition_to(task_t *next_task)
 	curctx = next_ctx;
 	
 	task_prologue();
-	//LOG("TRANS: to next task\r\n");
+	PRINTF("TRANS: to next task\r\n");
     __asm__ volatile ( // volatile because output operands unused by C
         "mov #0x2400, r1\n"
         "br %[ntask]\n"
@@ -247,11 +254,12 @@ void write_to_gbuf(uint8_t *value, uint8_t *data_addr, size_t var_size)
 #if WTGTIME > 0
 	TBCTL |= 0x0020; //start timer
 #endif
-	LOG("WRITE TO GBUF!!\r\n");
+	PRINTF("WRITE TO GBUF!! %u\r\n", var_size);
 	LOG("WRITE: address of curPointer: %u\r\n", data_addr);
 	//memcpy(&data[num_dirty_gv], value, var_size);
 	//data_size[num_dirty_gv] = var_size;
 	//data_dest[num_dirty_gv] = data_addr;
+	LOG("num_dirty_gv: %u\r\n", num_dirty_gv);
 	memcpy(data_base + num_dirty_gv, value, var_size);
 	*(data_size_base+num_dirty_gv) = var_size;
 	*(data_dest_base+num_dirty_gv) = data_addr;
@@ -271,6 +279,11 @@ void write_to_gbuf(uint8_t *value, uint8_t *data_addr, size_t var_size)
 	TBCTL &= ~(0x0020); //halt timer
 #endif
 }
+
+void modify_gbuf(uint8_t* value, size_t var_size, unsigned index){
+	memcpy(data_base + (index - 1), value, var_size);
+}
+
 /** @brief Entry point upon reboot */
 int main() {
     _init();
