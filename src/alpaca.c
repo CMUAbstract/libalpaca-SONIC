@@ -281,7 +281,7 @@ void write_to_gbuf(uint8_t *value, uint8_t *data_addr, size_t var_size)
 }
 
 void modify_gbuf(uint8_t* value, size_t var_size, unsigned index){
-	memcpy(data_base + (index - var_size), value, var_size);
+	memcpy(data_base + (index - ((var_size-1)>>1)+1), value, var_size);
 }
 
 /** @brief Entry point upon reboot */
