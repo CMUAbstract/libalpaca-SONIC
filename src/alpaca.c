@@ -11,27 +11,10 @@
 #endif
 
 #include "alpaca.h"
-#if SBUF > 0
-__nv uint8_t* dirty_arr[MAX_DIRTY_ARR_SIZE];
-__nv volatile unsigned num_arr=0;
-#endif
-#if GBUF > 0
-//__nv unsigned datalib[520];
-//__nv uint8_t* data_destlib[520];
-//__nv unsigned data_sizelib[520];
-//__nv unsigned* data_base;
-//__nv uint8_t** data_dest_base;
-//__nv unsigned* data_size_base;
-__nv unsigned* data_base = &data;
+__nv uint8_t** data_src_base = &data_src;
 __nv uint8_t** data_dest_base = &data_dest;
 __nv unsigned* data_size_base = &data_size;
 __nv volatile unsigned gv_index=0;
-#else
-#if SBUF > 0
-__nv volatile unsigned gv_index=0;
-#endif
-__nv self_field_meta_t *dirty_gv[MAX_DIRTY_GV_SIZE];
-#endif
 __nv volatile unsigned num_dirty_gv=0;
 //__nv uint8_t* dirty_arr;
 unsigned rcount=0;
@@ -65,11 +48,6 @@ __nv context_t * volatile curctx = &context_0;
 
 // for internal instrumentation purposes
 __nv volatile unsigned _numBoots = 0;
-void set_dirty_buf(unsigned* data_base_val, uint8_t** data_dest_base_val, unsigned* data_size_base_val){
-	data_base = data_base_val;
-	data_dest_base = data_dest_base_val;
-	data_size_base = data_size_base_val;
-}
 /**
  * @brief Function to be invoked at the beginning of every task
  */
@@ -88,86 +66,25 @@ void task_prologue()
 	//and since curctx's next is currently pointing on previous ctx, it should work!
 
 	if (curctx->time != curtask->last_execute_time) {
-#if GBUF == 0
-        int i;
-#endif
-#if GBUF == 0
-	while ((i = num_dirty_gv) > 0) {
-            self_field_meta_t *self_field = dirty_gv[--i];
-            if (self_field->idx_pair & SELF_CHAN_IDX_BIT_DIRTY_CURRENT) {
-                // Atomically: swap AND clear the dirty bit (by "moving" it over to MSB)
-                __asm__ volatile (
-                    "SWPB %[idx_pair]\n"
-                    : [idx_pair]  "=m" (self_field->idx_pair)
-                );
-            }
-            	num_dirty_gv = i;
-        }
-#else
 	while (gv_index < num_dirty_gv) {
 	    //GBUF here!
-		uint8_t* w_data_dest = *(data_dest_base+gv_index);
-		if (w_data_dest != 0) { //the entry is valid. if 0, it is not-the-head part of struct. ignore!
-			//unsigned w_data = data[i];
-			//unsigned w_data_size = data_size[gv_index];
-			unsigned w_data_size = *(data_size_base + gv_index);
-			//memcpy(w_data_dest, &data[gv_index], w_data_size);
-			memcpy(w_data_dest, data_base+gv_index, w_data_size);
-			LOG("final data: %u\r\n",*((unsigned*)w_data_dest));
-		}
+		uint8_t* w_data_dest = *(data_dest_base + gv_index);
+		uint8_t* w_data_src= *(data_src_base + gv_index);
+		//unsigned w_data = data[i];
+		//unsigned w_data_size = data_size[gv_index];
+		unsigned w_data_size = *(data_size_base + gv_index);
+		//memcpy(w_data_dest, &data[gv_index], w_data_size);
+		memcpy(w_data_dest, w_data_src, w_data_size);
+		LOG("final data: %u\r\n",*((unsigned*)w_data_dest));
             	++gv_index;
-		
         }
 	//LOG("TRANS: commit end\r\n");
 	num_dirty_gv = 0;
 	gv_index = 0;
-#endif
-#if SBUF > 0
-	while ((i = num_arr) > 0) {
-		LOG("num arr: %u\r\n",num_arr);
-		uint8_t* chan = dirty_arr[--i];
-        	uint8_t *chan_data = chan + offsetof(CH_TYPE(_sa, _da, _void_type_t), data);
-		uint16_t varSize = *((uint16_t*)chan_data);
-		LOG("size is: %u\r\n",varSize);
-		uint16_t* num_dirty_arr = chan_data + sizeof(varSize);
-		LOG("num_dirty_arr address is: %u\r\n",num_dirty_arr);
-		while(gv_index < *num_dirty_arr) {
-			LOG("num_dirty_arr address is: %u\r\n",num_dirty_arr);
-			//LOG("num_dirty_arr is: %u\r\n",j);
-			uint16_t* pointer = num_dirty_arr + 1;
-			LOG("pointer base address is: %u\r\n",pointer);
-			//LOG("pointer address is: %u\r\n",pointer+j);
-			//LOG("pointer is: %u\r\n",*(pointer+j));
-			uint8_t* buffer = pointer + BUFFER_SIZE;
-			LOG("buffer base address is: %u\r\n",buffer);
-			//LOG("buffer address is: %u\r\n",buffer+j*varSize);
-			//LOG("buffer is: %u\r\n",*(buffer+j*varSize));
-			
-			memcpy(*(pointer+gv_index), buffer+(gv_index)*varSize, varSize);
-			++gv_index;
-		}
-		*num_dirty_arr = 0;
-		gv_index = 0;
-		num_arr = i;
-	}	
-#endif
         curtask->last_execute_time = curctx->time;
     	}
 	else {
-#if SBUF > 0
-		unsigned i;
-		while ((i = num_arr) > 0) { //clear everything here. (Only necessary for power failure)
-			uint8_t* chan = dirty_arr[--i];
-			uint8_t *chan_data = chan + offsetof(CH_TYPE(_sa, _da, _void_type_t), data);
-			uint16_t varSize = *((uint16_t*)chan_data);
-			uint16_t* num_dirty_arr = chan_data + sizeof(varSize);
-
-			*num_dirty_arr = 0;
-			num_arr = i;
-		}
-#else
 	num_dirty_gv=0;
-#endif
 	}
 #if WTGTIME > 0
 	TBCTL &= ~(0x0020); //halt timer
@@ -248,40 +165,23 @@ void transition_to(task_t *next_task)
     //     br next_task
 }
 
-void write_to_gbuf(uint8_t *value, uint8_t *data_addr, size_t var_size) 
+void write_to_gbuf(uint8_t *data_src, uint8_t *data_dest, size_t var_size) 
 //void write_to_gbuf(const void *value, void* data_addr, size_t var_size) 
 {
 #if WTGTIME > 0
 	TBCTL |= 0x0020; //start timer
 #endif
 	PRINTF("WRITE TO GBUF!! %u\r\n", var_size);
-	LOG("WRITE: address of curPointer: %u\r\n", data_addr);
-	//memcpy(&data[num_dirty_gv], value, var_size);
-	//data_size[num_dirty_gv] = var_size;
-	//data_dest[num_dirty_gv] = data_addr;
+	LOG("WRITE: address of curPointer: %u\r\n", data_dest);
 	LOG("num_dirty_gv: %u\r\n", num_dirty_gv);
-	memcpy(data_base + num_dirty_gv, value, var_size);
-	*(data_size_base+num_dirty_gv) = var_size;
-	*(data_dest_base+num_dirty_gv) = data_addr;
-	if (var_size > sizeof(*(data_base + num_dirty_gv))) { //if data is struct, it may go beyond unsigned. In that case, invalidate succeeding values
-		unsigned quotient = (unsigned)((var_size-1)/sizeof(*(data_base + num_dirty_gv)))+1;	
-		LOG("quotient: %u\r\n",quotient);
-		for (unsigned i=1;i<quotient;++i) { //note: starts from 1, not 0
-			//data_size[num_dirty_gv+i]=0; //size doesn't matter! trash anyways
-			*(data_dest_base + num_dirty_gv+i)=0;
-		}
-		num_dirty_gv += quotient;
-	}
-	else {
-		num_dirty_gv++;
-	}
+
+	*(data_size_base + num_dirty_gv) = var_size;
+	*(data_dest_base + num_dirty_gv) = data_dest;
+	*(data_src_base + num_dirty_gv) = data_src;
+	num_dirty_gv++;
 #if WTGTIME > 0
 	TBCTL &= ~(0x0020); //halt timer
 #endif
-}
-
-void modify_gbuf(uint8_t* value, unsigned index, size_t var_size){
-	memcpy(data_base + (index - (((var_size-1)>>1)+1)), value, var_size);
 }
 
 /** @brief Entry point upon reboot */

@@ -175,23 +175,12 @@ typedef struct _context_t {
 } context_t;
 
 //KWMAENG: dirty list is kept outsize
-#if SBUF > 0
-extern uint8_t* dirty_arr[MAX_DIRTY_ARR_SIZE];
-extern volatile unsigned num_arr;
-#endif
-#if GBUF > 0
-extern unsigned data[];
+extern uint8_t* data_src[];
 extern uint8_t* data_dest[];
 extern unsigned data_size[];
-extern unsigned* data_base;
+extern uint8_t** data_src_base;
 extern uint8_t** data_dest_base;
 extern unsigned* data_size_base;
-//extern unsigned data[];
-//extern uint8_t* data_dest[];
-//extern unsigned data_size[];
-#else
-extern self_field_meta_t *dirty_gv[MAX_DIRTY_GV_SIZE];
-#endif
 extern volatile unsigned num_dirty_gv;
 extern unsigned rcount;
 extern unsigned wcount;
@@ -280,8 +269,7 @@ void task_prologue();
 void transition_to(task_t *task);
 void *chan_in(size_t var_size, uint8_t* chan, size_t field_offset);
 void *chan_in_again(size_t var_size, uint8_t* chan, size_t field_offset, ...);
-void write_to_gbuf(uint8_t *value, uint8_t *data_addr, size_t var_size); 
-void modify_gbuf(uint8_t *value, size_t var_size, unsigned index); 
+void write_to_gbuf(uint8_t *data_src, uint8_t *data_dest, size_t var_size); 
 void chan_out(const void *value,
               size_t var_size, uint8_t* chan, size_t field_offset, ...);
 void chan_out_gbuf(const void *value,
