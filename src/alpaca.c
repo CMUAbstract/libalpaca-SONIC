@@ -53,6 +53,7 @@ __nv volatile unsigned _numBoots = 0;
  */
 void task_prologue()
 {
+    _numBoots++;
 #if COUNT > 0
 	tcount++;
 #endif
@@ -188,7 +189,6 @@ void write_to_gbuf(uint8_t *data_src, uint8_t *data_dest, size_t var_size)
 int main() {
     _init();
 
-    _numBoots++;
 
     // Resume execution at the last task that started but did not finish
 

@@ -181,6 +181,7 @@ extern unsigned data_size[];
 extern uint8_t** data_src_base;
 extern uint8_t** data_dest_base;
 extern unsigned* data_size_base;
+extern volatile unsigned _numBoots;
 extern volatile unsigned num_dirty_gv;
 extern unsigned rcount;
 extern unsigned wcount;
