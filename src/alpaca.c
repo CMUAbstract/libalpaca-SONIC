@@ -54,6 +54,8 @@ __nv volatile unsigned _numBoots = 0;
 void task_prologue()
 {
     _numBoots++;
+    if(!_numBoots)
+	    _numBoots++;
 #if COUNT > 0
 	tcount++;
 #endif
