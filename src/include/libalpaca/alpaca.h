@@ -213,10 +213,10 @@ extern context_t * volatile curctx;
  */
 #define TASK(idx, func) \
     void func(); \
-    __nv task_t TASK_SYM_NAME(func) = { func, (1UL << idx), idx, 0, #func }; \
+    __nv task_t TASK_SYM_NAME(func) = { func, (1UL << idx), idx, 0, #func}; \
 
 #define TASK_REF(func) &TASK_SYM_NAME(func)
-
+extern void clear_isDirty();
 extern void set_dirty_buf(unsigned* data_base_val, uint8_t** data_dest_base_val, unsigned* data_size_base_val);
 /** @brief Function called on every reboot
  *  @details This function usually initializes hardware, such as GPIO
