@@ -175,10 +175,11 @@ typedef struct _context_t {
 } context_t;
 
 //KWMAENG: dirty list is kept outsize
-extern uint8_t* data_src[];
+//extern uint8_t* data_src[];
+extern uint8_t* data_buf[];
 extern uint8_t* data_dest[];
 extern unsigned data_size[];
-extern uint8_t** data_src_base;
+//extern uint8_t** data_src_base;
 extern uint8_t** data_dest_base;
 extern unsigned* data_size_base;
 extern volatile unsigned _numBoots;
