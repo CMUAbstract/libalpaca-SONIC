@@ -11,12 +11,18 @@
 #endif
 
 #include "alpaca.h"
-//__nv uint8_t** data_src_base = &data_src;
 __nv uint8_t* data_buf_base = &data_buf;
 __nv uint8_t** data_dest_base = &data_dest;
 __nv unsigned* data_size_base = &data_size;
+
+__nv uint8_t** data_src_base_arr = &data_src_arr;
+__nv uint8_t** data_dest_base_arr = &data_dest_arr;
+__nv unsigned* data_size_base_arr = &data_size_arr;
+
 __nv volatile unsigned gv_index=0;
+__nv volatile unsigned gv_index_arr=0;
 __nv volatile unsigned num_dirty_gv=0;
+__nv volatile unsigned num_dirty_gv_arr=0;
 //__nv uint8_t* dirty_arr;
 /* Dummy types for offset calculations */
 struct _void_type_t {
@@ -84,10 +90,25 @@ void task_prologue()
 		//LOG("TRANS: commit end\r\n");
 		num_dirty_gv = 0;
 		gv_index = 0;
+
+		//commit arrays
+		while (gv_index_arr < num_dirty_gv_arr) {
+		    //GBUF here	
+			uint8_t* w_data_dest_arr = *(data_dest_base_arr + gv_index_arr);
+			uint8_t* w_data_src_arr = *(data_src_base_arr + gv_index_arr);
+			unsigned w_data_size_arr = *(data_size_base_arr + gv_index_arr);
+			memcpy(w_data_dest_arr, w_data_src_arr, w_data_size_arr);
+			gv_index_arr++;
+		}
+		//LOG("TRANS: commit end\r\n");
+		num_dirty_gv_arr = 0;
+		gv_index_arr = 0;
+
 		curtask->last_execute_time = curctx->time;
     	}
 	else {
 		num_dirty_gv=0;
+		num_dirty_gv_arr=0;
 	}
 }
 
@@ -191,6 +212,14 @@ void write_to_gbuf(uint8_t *data_src, uint8_t *data_dest, size_t var_size)
 	else{
 		num_dirty_gv++;
 	}*/
+}
+void write_to_gbuf_array(uint8_t *data_src, uint8_t *data_dest, size_t var_size) 
+{
+	*(data_size_base_arr + num_dirty_gv_arr) = var_size;
+	*(data_dest_base_arr + num_dirty_gv_arr) = data_dest;
+	*(data_src_base_arr + num_dirty_gv_arr) = data_src;
+	//PRINTF("data[%u]: %u, size: %u\r\n", num_dirty_gv, data_buf_base[num_dirty_gv], var_size);
+	num_dirty_gv_arr++;
 }
 
 /** @brief Entry point upon reboot */

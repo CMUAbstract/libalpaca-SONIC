@@ -175,10 +175,12 @@ typedef struct _context_t {
 } context_t;
 
 //KWMAENG: dirty list is kept outsize
-//extern uint8_t* data_src[];
+extern uint8_t* data_src_arr[];
 extern uint8_t* data_buf[];
 extern uint8_t* data_dest[];
 extern unsigned data_size[];
+extern uint8_t* data_dest_arr[];
+extern unsigned data_size_arr[];
 //extern uint8_t** data_src_base;
 extern uint8_t** data_dest_base;
 extern unsigned* data_size_base;
@@ -272,6 +274,7 @@ void transition_to(task_t *task);
 void *chan_in(size_t var_size, uint8_t* chan, size_t field_offset);
 void *chan_in_again(size_t var_size, uint8_t* chan, size_t field_offset, ...);
 void write_to_gbuf(uint8_t *data_src, uint8_t *data_dest, size_t var_size); 
+void write_to_gbuf_array(uint8_t *data_src, uint8_t *data_dest, size_t var_size); 
 void chan_out(const void *value,
               size_t var_size, uint8_t* chan, size_t field_offset, ...);
 void chan_out_gbuf(const void *value,
