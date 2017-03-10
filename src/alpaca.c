@@ -4,10 +4,10 @@
 #include <msp430.h>
 
 #ifndef LIBCHAIN_ENABLE_DIAGNOSTICS
-#define LIBCHAIN_PRINTF(...)
+#define LIBCHAIN_//PRINTF(...)
 #else
 #include <stdio.h>
-#define LIBCHAIN_PRINTF printf
+#define LIBCHAIN_//PRINTF printf
 #endif
 
 #include "alpaca.h"
@@ -20,6 +20,8 @@ __nv uint8_t** data_dest_base_arr = &data_dest_arr;
 __nv unsigned* data_size_base_arr = &data_size_arr;
 
 __nv volatile unsigned gv_index=0;
+__nv volatile unsigned gv_index_data=0;
+
 __nv volatile unsigned gv_index_arr=0;
 __nv volatile unsigned num_dirty_gv=0;
 __nv volatile unsigned num_dirty_gv_arr=0;
@@ -56,6 +58,7 @@ __nv volatile unsigned _numBoots = 0;
  */
 void task_prologue()
 {
+	//PRINTF("prologue\r\n")
 	if(_numBoots == 0xFFFF){
 		clear_isDirty();
 		++_numBoots;
@@ -68,28 +71,39 @@ void task_prologue()
 	//and since curctx's next is currently pointing on previous ctx, it should work!
 
 	if (curctx->time != curtask->last_execute_time) {
-		while (gv_index < num_dirty_gv) {
+		while (gv_index_data < num_dirty_gv) {
 		    //GBUF here	
+		    	//PRINTF("gv_index_data: %u\r\n", gv_index_data);
+		    	//PRINTF("gv_index: %u\r\n", gv_index);
+		    	//PRINTF("num_dirty_gv: %u\r\n", num_dirty_gv);
 			uint8_t* w_data_dest = *(data_dest_base + gv_index);
+			//PRINTF("w_data_dest: %u\r\n", w_data_dest);
+			//PRINTF("w_data_dest add: %u\r\n", data_dest_base + gv_index);
 	//		if(w_data_dest != 0){
 				//uint8_t* w_data_src= *(data_src_base + gv_index);
 				//unsigned w_data = data[i];
 				//unsigned w_data_size = data_size[gv_index];
 			unsigned w_data_size = *(data_size_base + gv_index);
+			//PRINTF("w_data_size: %u\r\n", w_data_size);
+			//PRINTF("w_data_size add: %u\r\n", data_size_base + gv_index);
 			//memcpy(w_data_dest, &data[gv_index], w_data_size);
 			//memcpy(w_data_dest, &data_buf_base[gv_index], 1);
-			memcpy(w_data_dest, &data_buf_base[gv_index], w_data_size);
-			gv_index += w_data_size;
-//			PRINTF("data[%u]: %u\r\n", gv_index, data_buf_base[gv_index]);
-//			PRINTF("final data: %u\r\n",*(w_data_dest));
+			//PRINTF("data to copy: %u\r\n", *((unsigned*)&data_buf_base[gv_index_data]));
+			memcpy(w_data_dest, &data_buf_base[gv_index_data], w_data_size);
+			//PRINTF("data[%u]: %u\r\n", gv_index, data_buf_base[gv_index_data]);
+			gv_index_data += w_data_size;
+			gv_index++;
+			//PRINTF("final data: %u\r\n",*(w_data_dest));
 	//		}
 	//		else {
 	//			++gv_index;
 	//		}
 		}
+		//PRINTF("non-arr commit end\r\n");
 		//LOG("TRANS: commit end\r\n");
 		num_dirty_gv = 0;
 		gv_index = 0;
+		gv_index_data = 0;
 
 		//commit arrays
 		while (gv_index_arr < num_dirty_gv_arr) {
@@ -97,9 +111,15 @@ void task_prologue()
 			uint8_t* w_data_dest_arr = *(data_dest_base_arr + gv_index_arr);
 			uint8_t* w_data_src_arr = *(data_src_base_arr + gv_index_arr);
 			unsigned w_data_size_arr = *(data_size_base_arr + gv_index_arr);
+			//PRINTF("data dest: %u\r\n", w_data_dest_arr);
+			//PRINTF("data src: %u\r\n", w_data_src_arr);
+			//PRINTF("data size: %u\r\n", w_data_size_arr);
+			//PRINTF("gv index arr: %u\r\n", gv_index_arr);
+			//PRINTF("num gv dirty arr: %u\r\n", num_dirty_gv_arr);
 			memcpy(w_data_dest_arr, w_data_src_arr, w_data_size_arr);
 			gv_index_arr++;
 		}
+		//PRINTF("arr commit end\r\n");
 		//LOG("TRANS: commit end\r\n");
 		num_dirty_gv_arr = 0;
 		gv_index_arr = 0;
@@ -109,6 +129,8 @@ void task_prologue()
 	else {
 		num_dirty_gv=0;
 		num_dirty_gv_arr=0;
+		gv_index = 0;
+		//PRINTF("RESET\r\n");
 	}
 }
 
@@ -124,6 +146,7 @@ void transition_to(task_t *next_task)
 #if OVERHEAD == 1
 	TBCTL |= (0x0020);
 #endif
+	//PRINTF("transition_to\r\n")
 //	context_t *prev_ctx;
     // reset stack pointer
     // update current task pointer
@@ -170,7 +193,7 @@ void transition_to(task_t *next_task)
 	next_ctx->prev_ctx->task = curctx->task;
 
 	curctx = next_ctx;
-	
+	gv_index = 0;	
 	task_prologue();
 #if OVERHEAD == 1
 	TBCTL &= ~(0x0020);
@@ -194,12 +217,19 @@ void transition_to(task_t *next_task)
 void write_to_gbuf(uint8_t *data_src, uint8_t *data_dest, size_t var_size) 
 //void write_to_gbuf(const void *value, void* data_addr, size_t var_size) 
 {
-	*(data_size_base + num_dirty_gv) = var_size;
-	*(data_dest_base + num_dirty_gv) = data_dest;
+	*(data_size_base + gv_index) = var_size;
+	*(data_dest_base + gv_index) = data_dest;
+	//PRINTF("data size base: %u\r\n", data_size_base);
+	//PRINTF("data dest base: %u\r\n", data_dest_base);
 	//*(data_src_base + num_dirty_gv) = data_src;
 	memcpy(&data_buf_base[num_dirty_gv], data_src, var_size);
+	//PRINTF("w_data_size on write: %u\r\n", *(data_size_base + gv_index));
+	//PRINTF("w_data_size address: %u\r\n", (data_size_base + gv_index));
+	//PRINTF("w_data_dest on write: %u\r\n",*(data_dest_base + gv_index));
+	//PRINTF("w_data_dest address on write: %u\r\n", (data_dest_base + gv_index));
 	//PRINTF("data[%u]: %u, size: %u\r\n", num_dirty_gv, data_buf_base[num_dirty_gv], var_size);
 	num_dirty_gv += var_size;
+	gv_index++;
 	/*
 	if (var_size > sizeof(data_buf_base[num_dirty_gv])) { //if data is struct, it may go beyond unsigned. In that case, invalidate succeeding values
 		unsigned quotient = (unsigned)((var_size-1)/sizeof(data_buf_base[num_dirty_gv]))+1;
@@ -215,10 +245,11 @@ void write_to_gbuf(uint8_t *data_src, uint8_t *data_dest, size_t var_size)
 }
 void write_to_gbuf_array(uint8_t *data_src, uint8_t *data_dest, size_t var_size) 
 {
+	//PRINTF("start of arr wtg: %u\r\n", num_dirty_gv_arr);
 	*(data_size_base_arr + num_dirty_gv_arr) = var_size;
 	*(data_dest_base_arr + num_dirty_gv_arr) = data_dest;
 	*(data_src_base_arr + num_dirty_gv_arr) = data_src;
-	//PRINTF("data[%u]: %u, size: %u\r\n", num_dirty_gv, data_buf_base[num_dirty_gv], var_size);
+	//PRINTF("arr data[%u]: %u, size: %u\r\n", num_dirty_gv_arr, *((unsigned*)(data_src)), var_size);
 	num_dirty_gv_arr++;
 }
 
