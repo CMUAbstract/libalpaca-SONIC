@@ -168,7 +168,7 @@ typedef struct _context_t {
     task_t *task;
 
     /** @brief Logical time, ticks at task boundaries */
-    chain_time_t time;
+    uint8_t needCommit;
 
     // TODO: move this to top, just feels cleaner
     struct _context_t *prev_ctx;

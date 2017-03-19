@@ -27,20 +27,10 @@ struct _void_type_t {
 };
 typedef struct _void_type_t void_type_t;
 
-__nv chain_time_t volatile curtime = 0;
-
-/* To update the context, fill-in the unused one and flip the pointer to it */
-__nv context_t context_3 = {0};
-__nv context_t context_2 = {
-	.task = TASK_REF(_entry_task),
-	.time = 0,
-	.prev_ctx = &context_3,
-};
 __nv context_t context_1 = {0};
 __nv context_t context_0 = {
     .task = TASK_REF(_entry_task),
-    .time = 0,
-    .prev_ctx = &context_1,
+    .needCommit = 0,
 };
 
 __nv context_t * volatile curctx = &context_0;
@@ -64,13 +54,7 @@ void task_prologue()
 #if WTGTIME > 0
 	TBCTL |= 0x0020; //start timer
 #endif
-//    task_t *curtask = curctx->task;
-	task_t *curtask = curctx->prev_ctx->task;
-	//KWMAENG: Now commit must be done on previous task. not current.
-	//name curtask for compliance of previous code. Actually it is PREVIOUS TASK!
-	//and since curctx's next is currently pointing on previous ctx, it should work!
-
-	if (curctx->time != curtask->last_execute_time) {
+	if (curctx->needCommit) {
 	while (gv_index < num_dirty_gv) {
 	    //GBUF here!
 		uint8_t* w_data_dest = *(data_dest_base + gv_index);
@@ -86,7 +70,7 @@ void task_prologue()
 	//LOG("TRANS: commit end\r\n");
 	num_dirty_gv = 0;
 	gv_index = 0;
-        curtask->last_execute_time = curctx->time;
+        curctx->needCommit = 0;
     	}
 	else {
 	num_dirty_gv=0;
@@ -143,17 +127,15 @@ void transition_to(task_t *next_task)
     //       use it instead of the C runtime one.
     	context_t *next_ctx; // this should be in a register for efficiency
                          // (if we really care, write this func in asm)
-    	next_ctx = (curctx == &context_0 ? &context_2 : &context_0 );
+    	next_ctx = (curctx == &context_0 ? &context_1 : &context_0 );
 
 	next_ctx->task = next_task;
-	next_ctx->time = curctx->time + 1;
-	next_ctx->prev_ctx->time = curctx->time;
-	next_ctx->prev_ctx->task = curctx->task;
+	next_ctx->needCommit = 1;
 
 	curctx = next_ctx;
 	
 	task_prologue();
-	PRINTF("TRANS: to next task\r\n");
+	//PRINTF("TRANS: to next task\r\n");
     __asm__ volatile ( // volatile because output operands unused by C
         "mov #0x2400, r1\n"
         "br %[ntask]\n"
@@ -176,9 +158,9 @@ void write_to_gbuf(uint8_t *data_src, uint8_t *data_dest, size_t var_size)
 #if WTGTIME > 0
 	TBCTL |= 0x0020; //start timer
 #endif
-	PRINTF("WRITE TO GBUF!! %u\r\n", var_size);
-	LOG("WRITE: address of curPointer: %u\r\n", data_dest);
-	LOG("num_dirty_gv: %u\r\n", num_dirty_gv);
+	//PRINTF("WRITE TO GBUF!! %u\r\n", var_size);
+	//LOG("WRITE: address of curPointer: %u\r\n", data_dest);
+	//LOG("num_dirty_gv: %u\r\n", num_dirty_gv);
 
 	*(data_size_base + num_dirty_gv) = var_size;
 	*(data_dest_base + num_dirty_gv) = data_dest;
