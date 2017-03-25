@@ -127,17 +127,6 @@ void transition_to(task_t *next_task)
     //
     //       Probably need to write a custom entry point in asm, and
     //       use it instead of the C runtime one.
-    	context_t *next_ctx; // this should be in a register for efficiency
-                         // (if we really care, write this func in asm)
-    	next_ctx = (curctx == &context_0 ? &context_1 : &context_0 );
-
-	next_ctx->task = next_task;
-	next_ctx->needCommit = 1;
-
-	curctx = next_ctx;
-	
-	task_prologue();
-	//PRINTF("TRANS: to next task\r\n");
     __asm__ volatile ( // volatile because output operands unused by C
         "mov #0x2400, r1\n"
         "br %[ntask]\n"
