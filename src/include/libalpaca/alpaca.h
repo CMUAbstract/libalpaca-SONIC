@@ -190,7 +190,10 @@ extern unsigned max_num_dirty_gv;
 
 extern context_t * volatile curctx;
 
-
+extern volatile unsigned num_dirty_gv;
+extern  uint8_t** data_src_base;
+extern  uint8_t** data_dest_base;
+extern  unsigned* data_size_base;
 
 
 /** @brief Internal macro for constructing name of task symbol */

@@ -16,6 +16,10 @@ __nv uint8_t** data_dest_base = &data_dest;
 __nv unsigned* data_size_base = &data_size;
 __nv volatile unsigned gv_index=0;
 __nv volatile unsigned num_dirty_gv=0;
+
+__nv unsigned dummy_src[100];
+__nv unsigned dummy_dst[100];
+
 //__nv uint8_t* dirty_arr;
 unsigned rcount=0;
 unsigned wcount=0;
@@ -59,11 +63,9 @@ void task_prologue()
 	    //GBUF here!
 		uint8_t* w_data_dest = *(data_dest_base + gv_index);
 		uint8_t* w_data_src= *(data_src_base + gv_index);
-		//unsigned w_data = data[i];
-		//unsigned w_data_size = data_size[gv_index];
 		unsigned w_data_size = *(data_size_base + gv_index);
 		//memcpy(w_data_dest, &data[gv_index], w_data_size);
-		memcpy(w_data_dest, w_data_src, w_data_size);
+		memcpy(dummy_dst, dummy_src, w_data_size);
 		LOG("final data: %u\r\n",*((unsigned*)w_data_dest));
             	++gv_index;
         }
@@ -155,20 +157,8 @@ void transition_to(task_t *next_task)
 void write_to_gbuf(uint8_t *data_src, uint8_t *data_dest, size_t var_size) 
 //void write_to_gbuf(const void *value, void* data_addr, size_t var_size) 
 {
-#if WTGTIME > 0
-	TBCTL |= 0x0020; //start timer
-#endif
-	//PRINTF("WRITE TO GBUF!! %u\r\n", var_size);
-	//LOG("WRITE: address of curPointer: %u\r\n", data_dest);
-	//LOG("num_dirty_gv: %u\r\n", num_dirty_gv);
-
-	*(data_size_base + num_dirty_gv) = var_size;
-	*(data_dest_base + num_dirty_gv) = data_dest;
-	*(data_src_base + num_dirty_gv) = data_src;
-	num_dirty_gv++;
-#if WTGTIME > 0
-	TBCTL &= ~(0x0020); //halt timer
-#endif
+//	*(data_size_base + num_dirty_gv) = var_size;
+//	num_dirty_gv++;
 }
 
 /** @brief Entry point upon reboot */
