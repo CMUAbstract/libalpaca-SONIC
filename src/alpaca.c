@@ -127,6 +127,7 @@ void transition_to(task_t *next_task)
     //
     //       Probably need to write a custom entry point in asm, and
     //       use it instead of the C runtime one.
+
     __asm__ volatile ( // volatile because output operands unused by C
         "mov #0x2400, r1\n"
         "br %[ntask]\n"
@@ -162,7 +163,7 @@ int main() {
     //       support)
     // transition_to(curtask);
 
-    task_prologue();
+//    task_prologue();
 
     __asm__ volatile ( // volatile because output operands unused by C
         "br %[nt]\n"
