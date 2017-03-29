@@ -509,6 +509,6 @@ void chan_out_gbuf(const void *value,
         "mov #0x2400, r1\n" \
         "br %[ntask]\n" \
         : \
-        : [ntask] "r" (TASK_REF(task).func) \
+        : [ntask] "r" ((TASK_REF(task))->func) \
     );
 #endif // CHAIN_H
