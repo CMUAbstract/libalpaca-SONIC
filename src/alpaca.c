@@ -65,7 +65,7 @@ void task_prologue()
 		uint8_t* w_data_src= *(data_src_base + gv_index);
 		unsigned w_data_size = *(data_size_base + gv_index);
 		//memcpy(w_data_dest, &data[gv_index], w_data_size);
-		memcpy(dummy_dst, dummy_src, w_data_size);
+		memcpy(dummy_dst, w_data_src, w_data_size);
 		LOG("final data: %u\r\n",*((unsigned*)w_data_dest));
             	++gv_index;
         }
