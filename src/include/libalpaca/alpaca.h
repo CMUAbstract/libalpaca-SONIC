@@ -503,5 +503,12 @@ void chan_out_gbuf(const void *value,
 /** @brief Transfer control to the given task
  *  @param task     Name of the task function
  *  */
-#define TRANSITION_TO(task) transition_to(TASK_REF(task))
+//#define TRANSITION_TO(task) transition_to(TASK_REF(task))
+#define TRANSITION_TO(task) \
+    __asm__ volatile ( \
+        "mov #0x2400, r1\n" \
+        "br %[ntask]\n" \
+        : \
+        : [ntask] "r" (TASK_REF(task).func) \
+    );
 #endif // CHAIN_H
