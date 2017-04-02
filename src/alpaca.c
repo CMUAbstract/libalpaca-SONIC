@@ -89,6 +89,7 @@ void task_prologue()
  */
 void transition_to(task_t *next_task)
 {
+	TBCTL |= 0x0020; //start timer
 //	context_t *prev_ctx;
     // reset stack pointer
     // update current task pointer
@@ -136,6 +137,7 @@ void transition_to(task_t *next_task)
 	
 	task_prologue();
 	//PRINTF("TRANS: to next task\r\n");
+	TBCTL &= ~(0x0020); //start timer
     __asm__ volatile ( // volatile because output operands unused by C
         "mov #0x2400, r1\n"
         "br %[ntask]\n"
