@@ -103,21 +103,25 @@ void _init();
  */
 #define INIT_FUNC(func) void _init() { func(); }
 
+/**
+ *  @brief way to simply rename vars. I don't need it actually.
+ *  I should remove it or rename it..
+ *  Actually I should just remove this thing!
+ */
 #define GLOBAL_SB(type, name, ...) GLOBAL_SB_(type, name, ##__VA_ARGS__, 3, 2)
 #define GLOBAL_SB_(type, name, size, n, ...) GLOBAL_SB##n(type, name, size)
 #define GLOBAL_SB2(type, name, ...) __nv type _global_ ## name
 #define GLOBAL_SB3(type, name, size) __nv type _global_ ## name[size]
 
+/**
+ *  @brief way to simply reference renamed vars. I don't need it actually.
+ *  I should remove it or rename it..
+ *  Actually I should just remove this thing!
+ */
 #define GV(type, ...) GV_(type, ##__VA_ARGS__, 2, 1)
 #define GV_(type, i, n, ...) GV##n(type, i)
 #define GV1(type, ...) _global_ ## type
 #define GV2(type, i) _global_ ## type[i]
-
-/** @brief Write a value into a channel
- *  @details Note: the list of arguments here is a list of
- *  channels, not of multicast destinations (tasks). A
- *  multicast channel would show up as one argument here.
- */
 
 /** @brief Transfer control to the given task
  *  @param task     Name of the task function
