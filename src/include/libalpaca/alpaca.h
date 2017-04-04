@@ -1,5 +1,5 @@
-#ifndef CHAIN_H
-#define CHAIN_H
+#ifndef ALPACA_H
+#define ALPACA_H
 
 #include <stddef.h>
 #include <stdint.h>
@@ -26,6 +26,12 @@ typedef uint32_t task_mask_t;
 typedef uint16_t field_mask_t;
 typedef unsigned task_idx_t;
 
+/**
+ * @brief Transfer control to the given task
+ * @details Finalize the current task and jump to the given task.
+ *          This function does not return.
+ *
+ */
 typedef enum {
     CHAN_TYPE_T2T,
     CHAN_TYPE_SELF,
