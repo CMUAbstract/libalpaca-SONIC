@@ -41,9 +41,9 @@ __nv context_t context_1 = {0};
 /**
  * @brief double buffered context
  */
-extern void task_init();
+extern void task_0();
 __nv context_t context_0 = {
-	.task = &task_init,
+	.task = &task_0,
 	.needCommit = 0,
 };
 /**
@@ -128,7 +128,8 @@ void write_to_gbuf(uint8_t *data_src, uint8_t *data_dest, size_t var_size)
 
 /** @brief Entry point upon reboot */
 int main() {
-	_init();
+	//_init();
+	init();
 
 	// (better alternative: transition_to(curctx->task);
 
