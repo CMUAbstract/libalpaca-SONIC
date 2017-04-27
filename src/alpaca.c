@@ -41,8 +41,9 @@ __nv context_t context_1 = {0};
 /**
  * @brief double buffered context
  */
+extern void task_init();
 __nv context_t context_0 = {
-	.task = TASK_REF(_entry_task),
+	.task = &task_init,
 	.needCommit = 0,
 };
 /**
@@ -89,7 +90,7 @@ void task_prologue()
  *          This function does not return.
  *
  */
-void transition_to(task_t *next_task)
+void transition_to(void (*next_task)())
 {
 	// double-buffered update to deal with power failure
 	context_t *next_ctx;
@@ -107,7 +108,7 @@ void transition_to(task_t *next_task)
 			"mov #0x2400, r1\n"
 			"br %[ntask]\n"
 			:
-			: [ntask] "r" (next_task->func)
+			: [ntask] "r" (next_task)
 			);
 }
 
@@ -138,7 +139,7 @@ int main() {
 	__asm__ volatile ( // volatile because output operands unused by C
 			"br %[nt]\n"
 			: /* no outputs */
-			: [nt] "r" (curctx->task->func)
+			: [nt] "r" (curctx->task)
 			);
 
 	return 0; 

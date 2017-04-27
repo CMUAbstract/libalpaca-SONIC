@@ -9,17 +9,17 @@ typedef void (task_func_t)(void);
 typedef unsigned task_idx_t;
 
 /** @brief Task */
-typedef struct {
+//typedef struct {
 	/** @brief function address */
-	task_func_t *func;
+//	task_func_t *func;
 	/** @brief index (only used for showing progress) */
-	task_idx_t idx;
-} task_t;
+//	task_idx_t idx;
+//} task_t;
 
 /** @brief Execution context */
 typedef struct _context_t {
 	/** @brief current running task */
-	task_t *task;
+	task_func_t *task;
 	/** @brief indicate whether to jump to commit stage on power failure*/
 	uint8_t needCommit;
 } context_t;
@@ -43,7 +43,7 @@ extern void clear_isDirty();
 extern void init();
 
 void task_prologue();
-void transition_to(task_t *task);
+void transition_to(void (*task)());
 void write_to_gbuf(uint8_t *data_src, uint8_t *data_dest, size_t var_size); 
 
 /** @brief Internal macro for constructing name of task symbol */
@@ -56,11 +56,12 @@ void write_to_gbuf(uint8_t *data_src, uint8_t *data_dest, size_t var_size);
  *
  */
 #define TASK(idx, func) \
-	void func(); \
-__nv task_t TASK_SYM_NAME(func) = { func, idx }; \
+	void func(); //\
+//__nv task_t TASK_SYM_NAME(func) = { func, idx }; \
 
 /** @brief Macro for getting address of task */
-#define TASK_REF(func) &TASK_SYM_NAME(func)
+//#define TASK_REF(func) &TASK_SYM_NAME(func)
+#define TASK_REF(func) &func
 
 /** @brief First task to run when the application starts
  *  @details Symbol is defined by the ENTRY_TASK macro.
@@ -74,7 +75,7 @@ __nv task_t TASK_SYM_NAME(func) = { func, idx }; \
  *        not constrained, and the whole thing is less magical when reading app
  *        code, but slightly more verbose.
  */
-extern task_t TASK_SYM_NAME(_entry_task);
+//extern task_t TASK_SYM_NAME(_entry_task);
 
 /** @brief Declare the first task of the application
  *  @details This macro defines a function with a special name that is
@@ -126,5 +127,6 @@ void _init();
 /** @brief Transfer control to the given task
  *  @param task     Name of the task function
  *  */
-#define TRANSITION_TO(task) transition_to(TASK_REF(task))
+//#define TRANSITION_TO(task) transition_to(TASK_REF(task))
+#define TRANSITION_TO(task) transition_to(&task)
 #endif // ALPACA_H
