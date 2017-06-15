@@ -189,25 +189,25 @@ void append_war(uint8_t* addr, size_t size) {
  *			return 0 if it does not need redirection. 1 if it needs redirection.
  */
 // slow search, no reset version
-bool check_before_read(uint8_t *addr) {
+uint8_t* check_before_read(uint8_t *addr) {
 	if (addr < start_addr || addr > end_addr) 
-		return false;
+		return addr;
 	printf("read address: %x\r\n", addr);
 	if (is_write_first(addr)) {
 		printf("write_first! ignore\r\n");
-		return false;
+		return addr;
 	}
 	if (is_war(addr)) {
 		printf("is war!!\r\n");
-		return true;
+		return addr - offset;
 	}
 	if (is_read_first(addr)) {
 		printf("is read_first!!\r\n");
-		return false;
+		return addr;
 	}
 	printf("mark as read first!!\r\n");
 	append_read_first(addr);
-	return false;
+	return addr;
 }
 #if 0
 // fast search, slow reset version
@@ -237,26 +237,26 @@ bool check_before_read(uint8_t *addr) {
  */
 
 // slow search, no reset version
-bool check_before_write(uint8_t *addr, size_t size) {
+uint8_t* check_before_write(uint8_t *addr, size_t size) {
 	if (addr < start_addr || addr > end_addr) 
-		return false;
+		return addr;
 	printf("write address: %x\r\n", addr);
 	if (is_write_first(addr)) {
 		printf("is write_first!\r\n");
-		return false;
+		return addr;
 	}
 	if (is_war(addr)) {
 		printf("is war!\r\n");
-		return true;
+		return addr - offset;
 	}
 	if (is_read_first(addr)) {
 		printf("mark as war!\r\n");
 		append_war(addr, size);
-		return true;
+		return addr - offset;
 	}
 	printf("mark as write first!\r\n");
 	append_write_first(addr);
-	return false;
+	return addr;
 }
 #if 0
 // fast search, slow reset version
