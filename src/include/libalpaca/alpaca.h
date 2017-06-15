@@ -43,7 +43,7 @@ extern context_t * volatile curctx;
  */
 extern void init();
 
-void set_global_range(uint8_t* _start_addr, uint8_t* _end_addr);
+void set_global_range(uint8_t* _start_addr, uint8_t* _end_addr, uint8_t* _start_addr_bak);
 void task_prologue();
 void transition_to(void (*task)());
 void write_to_gbuf(uint8_t *data_src, uint8_t *data_dest, size_t var_size); 

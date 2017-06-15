@@ -18,7 +18,6 @@
 #define WAR 3
 
 #define MAX_TRACK 100 // temp
-#define OFFSET 1 // tmep
 /**
  * @brief dirtylist to save src address
  */
@@ -72,16 +71,19 @@ __nv volatile unsigned war_index = 0;
 
 __nv uint8_t* start_addr;
 __nv uint8_t* end_addr;
+__nv unsigned offset;
 /**
  * @brief Function to be called once to set the global range
  * ideally, it is enough to be called only once, however, currently it is called at the beginning of task_0
  * it can be optimized. (i.e., it needs not be set at runtime)
  */
-void set_global_range(uint8_t* _start_addr, uint8_t* _end_addr) {
+void set_global_range(uint8_t* _start_addr, uint8_t* _end_addr, uint8_t* _start_addr_bak) {
 	start_addr = _start_addr;
 	printf("start addr: %x\r\n", start_addr);
 	end_addr = _end_addr;
 	printf("end addr: %x\r\n", end_addr);
+	offset = _start_addr - _start_addr_bak;
+	printf("offset: %x\r\n", offset);
 }
 
 /**
@@ -99,16 +101,22 @@ void task_prologue()
 	if (curctx->needCommit) {
 		while (gv_index < war_index) {
 			uint8_t* w_data_dest= war[gv_index];
-			uint8_t* w_data_src = w_data_dest + OFFSET;
+			uint8_t* w_data_src = w_data_dest - offset;
 			unsigned w_data_size = war_size[gv_index];
+			printf("copy from %x to %x, size %u\r\n", w_data_dest, w_data_src, w_data_size);
 			memcpy(w_data_dest, w_data_src, w_data_size);
 			++gv_index;
 		}
+		war_index = 0;
 		gv_index = 0;
+		read_first_index = 0;
+		write_first_index = 0;
 		curctx->needCommit = 0;
 	}
 	else {
 		war_index = 0;
+		read_first_index = 0;
+		write_first_index = 0;
 	}
 }
 
@@ -120,6 +128,7 @@ void task_prologue()
  */
 void transition_to(void (*next_task)())
 {
+	printf("======transition=====\r\n");
 	// double-buffered update to deal with power failure
 	context_t *next_ctx;
 	next_ctx = (curctx == &context_0 ? &context_1 : &context_0 );
@@ -183,15 +192,20 @@ void append_war(uint8_t* addr, size_t size) {
 bool check_before_read(uint8_t *addr) {
 	if (addr < start_addr || addr > end_addr) 
 		return false;
+	printf("read address: %x\r\n", addr);
 	if (is_write_first(addr)) {
+		printf("write_first! ignore\r\n");
 		return false;
 	}
 	if (is_war(addr)) {
+		printf("is war!!\r\n");
 		return true;
 	}
 	if (is_read_first(addr)) {
+		printf("is read_first!!\r\n");
 		return false;
 	}
+	printf("mark as read first!!\r\n");
 	append_read_first(addr);
 	return false;
 }
@@ -226,16 +240,21 @@ bool check_before_read(uint8_t *addr) {
 bool check_before_write(uint8_t *addr, size_t size) {
 	if (addr < start_addr || addr > end_addr) 
 		return false;
+	printf("write address: %x\r\n", addr);
 	if (is_write_first(addr)) {
+		printf("is write_first!\r\n");
 		return false;
 	}
 	if (is_war(addr)) {
+		printf("is war!\r\n");
 		return true;
 	}
 	if (is_read_first(addr)) {
+		printf("mark as war!\r\n");
 		append_war(addr, size);
 		return true;
 	}
+	printf("mark as write first!\r\n");
 	append_write_first(addr);
 	return false;
 }
