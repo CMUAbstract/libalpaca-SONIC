@@ -12,18 +12,25 @@
 
 #include "alpaca.h"
 
+#define IDLE 0
+#define WRITE_FIRST 1
+#define READ_FIRST 2
+#define WAR 3
+
+#define MAX_TRACK 100 // temp
+#define OFFSET 1 // tmep
 /**
  * @brief dirtylist to save src address
  */
-__nv uint8_t** data_src_base = &data_src;
+//__nv uint8_t** data_src_base = &data_src;
 /**
  * @brief dirtylist to save dst address
  */
-__nv uint8_t** data_dest_base = &data_dest;
+//__nv uint8_t** data_dest_base = &data_dest;
 /**
  * @brief dirtylist to save size
  */
-__nv unsigned* data_size_base = &data_size;
+//__nv unsigned* data_size_base = &data_size;
 
 /**
  * @brief var to iterate over dirtylist
@@ -32,7 +39,7 @@ __nv volatile unsigned gv_index=0;
 /**
  * @brief len of dirtylist
  */
-__nv volatile unsigned num_dirty_gv=0;
+//__nv volatile unsigned num_dirty_gv=0;
 
 /**
  * @brief double buffered context
@@ -55,32 +62,53 @@ __nv context_t * volatile curctx = &context_0;
  */
 __nv volatile unsigned _numBoots = 0;
 
+uint8_t* read_first[MAX_TRACK];
+uint8_t* write_first[MAX_TRACK];
+__nv uint8_t* war[MAX_TRACK];
+__nv unsigned war_size[MAX_TRACK];
+unsigned volatile read_first_index = 0;
+unsigned volatile write_first_index = 0;
+__nv volatile unsigned war_index = 0;
+
+__nv uint8_t* start_addr;
+__nv uint8_t* end_addr;
+/**
+ * @brief Function to be called once to set the global range
+ * ideally, it is enough to be called only once, however, currently it is called at the beginning of task_0
+ * it can be optimized. (i.e., it needs not be set at runtime)
+ */
+void set_global_range(uint8_t* _start_addr, uint8_t* _end_addr) {
+	start_addr = _start_addr;
+	printf("start addr: %x\r\n", start_addr);
+	end_addr = _end_addr;
+	printf("end addr: %x\r\n", end_addr);
+}
+
 /**
  * @brief Function to be invoked at the beginning of every task
  */
 void task_prologue()
 {
 	// increment version
-	if(_numBoots == 0xFFFF){
-		clear_isDirty();
-		++_numBoots;
-	}
-	++_numBoots;
+//	if(_numBoots == 0xFFFF){
+//		clear_isDirty();
+//		++_numBoots;
+//	}
+//	++_numBoots;
 	// commit if needed
 	if (curctx->needCommit) {
-		while (gv_index < num_dirty_gv) {
-			uint8_t* w_data_dest = *(data_dest_base + gv_index);
-			uint8_t* w_data_src= *(data_src_base + gv_index);
-			unsigned w_data_size = *(data_size_base + gv_index);
+		while (gv_index < war_index) {
+			uint8_t* w_data_dest= war[gv_index];
+			uint8_t* w_data_src = w_data_dest + OFFSET;
+			unsigned w_data_size = war_size[gv_index];
 			memcpy(w_data_dest, w_data_src, w_data_size);
 			++gv_index;
 		}
-		num_dirty_gv = 0;
 		gv_index = 0;
 		curctx->needCommit = 0;
 	}
 	else {
-		num_dirty_gv=0;
+		war_index = 0;
 	}
 }
 
@@ -112,19 +140,127 @@ void transition_to(void (*next_task)())
 			);
 }
 
-/**
- * @brief save variable data to dirtylist
- *
- */
-void write_to_gbuf(uint8_t *data_src, uint8_t *data_dest, size_t var_size) 
-{
-	// save to dirtylist
-	*(data_size_base + num_dirty_gv) = var_size;
-	*(data_dest_base + num_dirty_gv) = data_dest;
-	*(data_src_base + num_dirty_gv) = data_src;
-	// increment count
-	num_dirty_gv++;
+bool is_read_first(uint8_t* addr) {
+	for (unsigned i = 0; i < read_first_index; ++i) {
+		if (read_first[i] == addr)
+			return true;
+	}
+	return false;
 }
+bool is_write_first(uint8_t* addr) {
+	for (unsigned i = 0; i < write_first_index; ++i) {
+		if (write_first[i] == addr)
+			return true;
+	}
+	return false;
+}
+bool is_war(uint8_t* addr) {
+	for (unsigned i = 0; i < war_index; ++i) {
+		if (war[i] == addr)
+			return true;
+	}
+	return false;
+}
+void append_read_first(uint8_t* addr) {
+	read_first[read_first_index++] = addr;
+}
+void append_write_first(uint8_t* addr) {
+	write_first[write_first_index++] = addr;
+}
+void append_war(uint8_t* addr, size_t size) {
+	war_size[war_index] = size;
+	war[war_index++] = addr;
+}
+
+/**
+ * @brief Called on every read to possible _global_ 
+ * @details 1. check if it is reading _global_
+ * 			2. if it was never read or written, mark it read-first
+ * 			3. if it is WAR, redirect read to buffer
+ *			return 0 if it does not need redirection. 1 if it needs redirection.
+ */
+// slow search, no reset version
+bool check_before_read(uint8_t *addr) {
+	if (addr < start_addr || addr > end_addr) 
+		return false;
+	if (is_write_first(addr)) {
+		return false;
+	}
+	if (is_war(addr)) {
+		return true;
+	}
+	if (is_read_first(addr)) {
+		return false;
+	}
+	append_read_first(addr);
+	return false;
+}
+#if 0
+// fast search, slow reset version
+bool check_before_read(uint8_t *addr) {
+	if (addr < START_ADDR || addr > END_ADDR) 
+		return false;
+	unsigned index = (unsigned)addr - START_ADDR; //START_ADDR: start address of _global_ vars
+	uint8_t status = rw_table[index];
+	if (status == IDLE) {
+		rw_table[index] = READ_FIRST;
+	}
+	else if (status == WAR) {
+		// redirect read to double buffer!!!
+		return true;
+	}
+	return false;
+}
+#endif
+
+/**
+ * @brief Called on every write to possible _global_ 
+ * @details 1. check if it is writinging _global_
+ * 			2. if it was never read or written, mark it WRITE_FIRST
+ * 			3. if it is READ_FIRST, mark it WAR, and update dirty list & redirect write
+ * 			4. if it is WAR, redirect write to buffer
+ *			return 0 if it does not need redirection. 1 if it needs redirection.
+ */
+
+// slow search, no reset version
+bool check_before_write(uint8_t *addr, size_t size) {
+	if (addr < start_addr || addr > end_addr) 
+		return false;
+	if (is_write_first(addr)) {
+		return false;
+	}
+	if (is_war(addr)) {
+		return true;
+	}
+	if (is_read_first(addr)) {
+		append_war(addr, size);
+		return true;
+	}
+	append_write_first(addr);
+	return false;
+}
+#if 0
+// fast search, slow reset version
+bool check_before_write(uint8_t *addr, size_t var_size) {
+	if (addr < START_ADDR || addr > END_ADDR) 
+		return false;
+	unsigned index = (unsigned)addr - START_ADDR; //START_ADDR: start address of _global_ vars
+	uint8_t status = rw_table[index];
+	if (status == IDLE) {
+		rw_table[index] = WRITE_FIRST;
+	}
+	else if (status == READ_FIRST) {
+		rw_table[index] = WAR;
+		append_dirtylist(addr, var_size);
+		return true;
+	}
+	else if (status == WAR) {
+		// redirect read to double buffer!!!
+		return true;
+	}
+	return false;
+}
+#endif
 
 /** @brief Entry point upon reboot */
 int main() {

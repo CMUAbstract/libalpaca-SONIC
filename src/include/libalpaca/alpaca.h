@@ -3,6 +3,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <stdbool.h>
 #include <libmsp/mem.h>
 
 typedef void (task_func_t)(void);
@@ -24,17 +25,17 @@ typedef struct _context_t {
 	uint8_t needCommit;
 } context_t;
 
-extern uint8_t* data_src[];
-extern uint8_t* data_dest[];
-extern unsigned data_size[];
-extern uint8_t** data_src_base;
-extern uint8_t** data_dest_base;
-extern unsigned* data_size_base;
+//extern uint8_t* data_src[];
+//extern uint8_t* data_dest[];
+//extern unsigned data_size[];
+//extern uint8_t** data_src_base;
+//extern uint8_t** data_dest_base;
+//extern unsigned* data_size_base;
 extern volatile unsigned _numBoots;
 extern volatile unsigned num_dirty_gv;
 extern context_t * volatile curctx;
 /** @brief LLVM generated function that clears all isDirty_ array */
-extern void clear_isDirty();
+//extern void clear_isDirty();
 /** @brief Function called on every reboot
  *  @details This function usually initializes hardware, such as GPIO
  *           direction. The application must define this function because
@@ -42,9 +43,11 @@ extern void clear_isDirty();
  */
 extern void init();
 
+void set_global_range(uint8_t* _start_addr, uint8_t* _end_addr);
 void task_prologue();
 void transition_to(void (*task)());
 void write_to_gbuf(uint8_t *data_src, uint8_t *data_dest, size_t var_size); 
+//void __loop_bound__(unsigned val){};
 
 /** @brief Internal macro for constructing name of task symbol */
 #define TASK_SYM_NAME(func) _task_ ## func
