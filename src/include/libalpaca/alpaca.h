@@ -22,7 +22,7 @@ typedef struct _context_t {
 	/** @brief current running task */
 	task_func_t *task;
 	/** @brief indicate whether to jump to commit stage on power failure*/
-	uint8_t needCommit;
+	volatile unsigned war_index;
 } context_t;
 
 //extern uint8_t* data_src[];

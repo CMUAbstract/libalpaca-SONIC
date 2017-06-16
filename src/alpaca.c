@@ -18,6 +18,7 @@
 #define WAR 3
 
 #define MAX_TRACK 100 // temp
+
 /**
  * @brief dirtylist to save src address
  */
@@ -31,10 +32,6 @@
  */
 //__nv unsigned* data_size_base = &data_size;
 
-/**
- * @brief var to iterate over dirtylist
- */
-__nv volatile unsigned gv_index=0;
 /**
  * @brief len of dirtylist
  */
@@ -50,7 +47,7 @@ __nv context_t context_1 = {0};
 extern void task_0();
 __nv context_t context_0 = {
 	.task = &task_0,
-	.needCommit = 0,
+	.war_index = 0,
 };
 /**
  * @brief current context
@@ -67,7 +64,6 @@ __nv uint8_t* war[MAX_TRACK];
 __nv unsigned war_size[MAX_TRACK];
 unsigned volatile read_first_index = 0;
 unsigned volatile write_first_index = 0;
-__nv volatile unsigned war_index = 0;
 
 __nv uint8_t* start_addr;
 __nv uint8_t* end_addr;
@@ -95,25 +91,15 @@ void task_prologue()
 //	}
 //	++_numBoots;
 	// commit if needed
-	if (curctx->needCommit) {
-		while (gv_index < war_index) {
-			uint8_t* w_data_dest= war[gv_index];
-			uint8_t* w_data_src = w_data_dest - offset;
-			unsigned w_data_size = war_size[gv_index];
-			memcpy(w_data_dest, w_data_src, w_data_size);
-			++gv_index;
-		}
-		war_index = 0;
-		gv_index = 0;
-		read_first_index = 0;
-		write_first_index = 0;
-		curctx->needCommit = 0;
+	while (curctx->war_index != 0) {
+		uint8_t* w_data_dest = war[curctx->war_index - 1];
+		uint8_t* w_data_src = w_data_dest - offset;
+		unsigned w_data_size = war_size[curctx->war_index - 1];
+		memcpy(w_data_dest, w_data_src, w_data_size);
+		--(curctx->war_index);
 	}
-	else {
-		war_index = 0;
-		read_first_index = 0;
-		write_first_index = 0;
-	}
+	read_first_index = 0;
+	write_first_index = 0;
 }
 
 /**
@@ -128,7 +114,7 @@ void transition_to(void (*next_task)())
 	context_t *next_ctx;
 	next_ctx = (curctx == &context_0 ? &context_1 : &context_0 );
 	next_ctx->task = next_task;
-	next_ctx->needCommit = 1;
+	next_ctx->war_index = 0;
 
 	// atomic update of curctx
 	curctx = next_ctx;
@@ -159,7 +145,7 @@ bool is_write_first(uint8_t* addr) {
 	return false;
 }
 bool is_war(uint8_t* addr) {
-	for (unsigned i = 0; i < war_index; ++i) {
+	for (unsigned i = 0; i < curctx->war_index; ++i) {
 		if (war[i] == addr)
 			return true;
 	}
@@ -171,9 +157,14 @@ void append_read_first(uint8_t* addr) {
 void append_write_first(uint8_t* addr) {
 	write_first[write_first_index++] = addr;
 }
+// append war_list and backup
 void append_war(uint8_t* addr, size_t size) {
-	war_size[war_index] = size;
-	war[war_index++] = addr;
+	//backup
+	uint8_t* addr_bak = addr - offset;
+	memcpy(addr_bak, addr, size);
+	//append dirtylist
+	war_size[curctx->war_index] = size;
+	war[curctx->war_index++] = addr;
 }
 
 /**
@@ -184,20 +175,20 @@ void append_war(uint8_t* addr, size_t size) {
  *			return 0 if it does not need redirection. 1 if it needs redirection.
  */
 // slow search, no reset version
-uint8_t* check_before_read(uint8_t *addr) {
+void check_before_read(uint8_t *addr) {
 	if (addr < start_addr || addr > end_addr) 
-		return addr;
+		return;
 	if (is_write_first(addr)) {
-		return addr;
+		return;
 	}
 	if (is_war(addr)) {
-		return addr - offset;
+		return;
 	}
 	if (is_read_first(addr)) {
-		return addr;
+		return;
 	}
 	append_read_first(addr);
-	return addr;
+	return;
 }
 #if 0
 // fast search, slow reset version
@@ -227,21 +218,21 @@ bool check_before_read(uint8_t *addr) {
  */
 
 // slow search, no reset version
-uint8_t* check_before_write(uint8_t *addr, size_t size) {
+void check_before_write(uint8_t *addr, size_t size) {
 	if (addr < start_addr || addr > end_addr) 
-		return addr;
+		return;
 	if (is_write_first(addr)) {
-		return addr;
+		return;
 	}
 	if (is_war(addr)) {
-		return addr - offset;
+		return;
 	}
 	if (is_read_first(addr)) {
 		append_war(addr, size);
-		return addr - offset;
+		return;
 	}
 	append_write_first(addr);
-	return addr;
+	return;
 }
 #if 0
 // fast search, slow reset version
