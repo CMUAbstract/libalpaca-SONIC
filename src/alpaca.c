@@ -79,11 +79,8 @@ __nv unsigned offset;
  */
 void set_global_range(uint8_t* _start_addr, uint8_t* _end_addr, uint8_t* _start_addr_bak) {
 	start_addr = _start_addr;
-	printf("start addr: %x\r\n", start_addr);
 	end_addr = _end_addr;
-	printf("end addr: %x\r\n", end_addr);
 	offset = _start_addr - _start_addr_bak;
-	printf("offset: %x\r\n", offset);
 }
 
 /**
@@ -103,7 +100,6 @@ void task_prologue()
 			uint8_t* w_data_dest= war[gv_index];
 			uint8_t* w_data_src = w_data_dest - offset;
 			unsigned w_data_size = war_size[gv_index];
-			printf("copy from %x to %x, size %u\r\n", w_data_dest, w_data_src, w_data_size);
 			memcpy(w_data_dest, w_data_src, w_data_size);
 			++gv_index;
 		}
@@ -128,7 +124,6 @@ void task_prologue()
  */
 void transition_to(void (*next_task)())
 {
-	printf("======transition=====\r\n");
 	// double-buffered update to deal with power failure
 	context_t *next_ctx;
 	next_ctx = (curctx == &context_0 ? &context_1 : &context_0 );
@@ -192,20 +187,15 @@ void append_war(uint8_t* addr, size_t size) {
 uint8_t* check_before_read(uint8_t *addr) {
 	if (addr < start_addr || addr > end_addr) 
 		return addr;
-	printf("read address: %x\r\n", addr);
 	if (is_write_first(addr)) {
-		printf("write_first! ignore\r\n");
 		return addr;
 	}
 	if (is_war(addr)) {
-		printf("is war!!\r\n");
 		return addr - offset;
 	}
 	if (is_read_first(addr)) {
-		printf("is read_first!!\r\n");
 		return addr;
 	}
-	printf("mark as read first!!\r\n");
 	append_read_first(addr);
 	return addr;
 }
@@ -240,21 +230,16 @@ bool check_before_read(uint8_t *addr) {
 uint8_t* check_before_write(uint8_t *addr, size_t size) {
 	if (addr < start_addr || addr > end_addr) 
 		return addr;
-	printf("write address: %x\r\n", addr);
 	if (is_write_first(addr)) {
-		printf("is write_first!\r\n");
 		return addr;
 	}
 	if (is_war(addr)) {
-		printf("is war!\r\n");
 		return addr - offset;
 	}
 	if (is_read_first(addr)) {
-		printf("mark as war!\r\n");
 		append_war(addr, size);
 		return addr - offset;
 	}
-	printf("mark as write first!\r\n");
 	append_write_first(addr);
 	return addr;
 }
