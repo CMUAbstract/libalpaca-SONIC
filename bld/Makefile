@@ -1,5 +1,4 @@
 #include $(MEMENTOS_ROOT)/Makefile.flags
-include $(MAKER_ROOT)/Makefile.count
 
 override SRC_ROOT = ../../src
 
