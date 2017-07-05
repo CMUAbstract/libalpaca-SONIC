@@ -114,14 +114,14 @@ void transition_to(void (*next_task)())
 	curctx = next_ctx;
 
 	// fire task prologue
-	task_prologue();
-	// jump to next tast
-	__asm__ volatile ( // volatile because output operands unused by C
-			"mov #0x2400, r1\n"
-			"br %[ntask]\n"
-			:
-			: [ntask] "r" (next_task)
-			);
+//	task_prologue();
+//	// jump to next tast
+//	__asm__ volatile ( // volatile because output operands unused by C
+//			"mov #0x2400, r1\n"
+//			"br %[ntask]\n"
+//			:
+//			: [ntask] "r" (next_task)
+//			);
 }
 
 bool is_backed_up(uint8_t* addr) {
@@ -194,13 +194,15 @@ int main() {
 
 	// check for update
 	task_prologue();
-
+	while (1) {
+		((func*)(curctx->task))();
+	}
 	// jump to curctx
-	__asm__ volatile ( // volatile because output operands unused by C
-			"br %[nt]\n"
-			: /* no outputs */
-			: [nt] "r" (curctx->task)
-			);
+//	__asm__ volatile ( // volatile because output operands unused by C
+//			"br %[nt]\n"
+//			: /* no outputs */
+//			: [nt] "r" (curctx->task)
+//			);
 
 	return 0; 
 }
