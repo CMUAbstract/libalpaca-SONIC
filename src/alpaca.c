@@ -195,7 +195,7 @@ int main() {
 	// check for update
 	task_prologue();
 	while (1) {
-		((func*)(curctx->task))();
+		((void (*)(void))(curctx->task))();
 	}
 	// jump to curctx
 //	__asm__ volatile ( // volatile because output operands unused by C
