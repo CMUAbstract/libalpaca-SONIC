@@ -18,6 +18,9 @@
 #define WAR 3
 
 #define MAX_TRACK 100 // temp
+#define ROM_START 0x4400
+#define ROM_END 0xBB80
+#define CALL_INST 0x12B0
 
 /**
  * @brief dirtylist to save src address
@@ -64,6 +67,7 @@ __nv unsigned backup_size[MAX_TRACK];
 __nv uint8_t* start_addr;
 __nv uint8_t* end_addr;
 __nv unsigned offset;
+uint8_t program_end = 0;
 /**
  * @brief Function to be called once to set the global range
  * ideally, it is enough to be called only once, however, currently it is called at the beginning of task_0
@@ -112,7 +116,7 @@ void transition_to(void (*next_task)())
 
 	// atomic update of curctx
 	curctx = next_ctx;
-
+	program_end = 0;
 	// fire task prologue
 //	task_prologue();
 //	// jump to next tast
@@ -194,7 +198,8 @@ int main() {
 
 	// check for update
 	task_prologue();
-	while (1) {
+	while (!program_end) {
+		program_end = 1;
 		((void (*)(void))(curctx->task))();
 	}
 	// jump to curctx
@@ -205,4 +210,28 @@ int main() {
 //			);
 
 	return 0; 
+}
+
+void remove_check() {
+	unsigned* p = NULL;
+	unsigned* prev_word = NULL;
+	unsigned* cbw_address = &check_before_write; //function address of check_before_write()
+	
+	PRINTF("remove check start\r\n");
+	// iterate in word granularity
+	for (p = ROM_START; p < ROM_END; ++p) {
+		if (*p == CALL_INST) { // CALL inst
+			PRINTF("CALL INST!\r\n");
+			prev_word = p;
+		}
+		else if (prev_word != NULL) { // if prev word was CALL inst
+			//check the call address
+			if (*p == cbw_address) {
+				PRINTF("CHANGE TO NOP!\r\n");
+				*p = 0x0343; // nop
+				*prev_word = 0x0343; // nop
+			}
+			prev_word = NULL;
+		}
+	}
 }
