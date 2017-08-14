@@ -17,7 +17,7 @@
 #define READ_FIRST 2
 #define WAR 3
 
-#define MAX_TRACK 100 // temp
+#define MAX_TRACK 3000 // temp
 #define ROM_START 0x4400
 #define ROM_END 0xBB80
 #define CALL_INST 0x12B0
@@ -68,6 +68,7 @@ __nv uint8_t* start_addr;
 __nv uint8_t* end_addr;
 __nv unsigned offset;
 uint8_t program_end = 0;
+__nv volatile isSafeKill = 1;
 /**
  * @brief Function to be called once to set the global range
  * ideally, it is enough to be called only once, however, currently it is called at the beginning of task_0
@@ -91,6 +92,12 @@ void task_prologue()
 //	}
 //	++_numBoots;
 	// commit if needed
+#if 0
+	// temp
+	if (!isSafeKill) {
+		while (1);
+	}
+#endif
 	while (curctx->backup_index != 0) {
 		uint8_t* w_data_dest = backup[curctx->backup_index - 1];
 		uint8_t* w_data_src = w_data_dest - offset;
@@ -115,8 +122,11 @@ void transition_to(void (*next_task)())
 	next_ctx->backup_index = 0;
 
 	// atomic update of curctx
-	curctx = next_ctx;
 	program_end = 0;
+	curctx = next_ctx;
+#if 0
+	isSafeKill = 1;
+#endif
 	// fire task prologue
 //	task_prologue();
 //	// jump to next tast
@@ -166,28 +176,6 @@ void check_before_write(uint8_t *addr, size_t size) {
 	back_up(addr, size);
 	return;
 }
-#if 0
-// fast search, slow reset version
-bool check_before_write(uint8_t *addr, size_t var_size) {
-	if (addr < START_ADDR || addr > END_ADDR) 
-		return false;
-	unsigned index = (unsigned)addr - START_ADDR; //START_ADDR: start address of _global_ vars
-	uint8_t status = rw_table[index];
-	if (status == IDLE) {
-		rw_table[index] = WRITE_FIRST;
-	}
-	else if (status == READ_FIRST) {
-		rw_table[index] = WAR;
-		append_dirtylist(addr, var_size);
-		return true;
-	}
-	else if (status == WAR) {
-		// redirect read to double buffer!!!
-		return true;
-	}
-	return false;
-}
-#endif
 
 /** @brief Entry point upon reboot */
 int main() {
@@ -199,6 +187,9 @@ int main() {
 	// check for update
 	task_prologue();
 	while (!program_end) {
+#if 0
+		isSafeKill = 0;
+#endif
 		program_end = 1;
 		((void (*)(void))(curctx->task))();
 	}
