@@ -123,8 +123,6 @@ void checkpoint() {
 	__asm__ volatile ("MOV R1, 2(R12)"); // We need to add 6 to get the prev SP 
 	__asm__ volatile ("ADD #6, 2(R12)");
 	__asm__ volatile ("MOV R2, 4(R12)");
-//	__asm__ volatile ("MOV R3, 6(R12)"); //TODO: Can we skip R3? 
-//    __asm__ volatile ("PUSH 8(R1)");     // R4  will appear at 22(R1) [see note above]
 	__asm__ volatile ("MOV 2(R1), 6(R12)"); // R4
 	__asm__ volatile ("MOV R5, 8(R12)");
 	__asm__ volatile ("MOV R6, 10(R12)");
@@ -133,17 +131,20 @@ void checkpoint() {
 	__asm__ volatile ("MOV R9, 16(R12)");
 	__asm__ volatile ("MOV R10, 18(R12)");
 	__asm__ volatile ("MOV R11, 20(R12)");
+	// TODO: Do we ever have to save R12, R13, and SR? (Or maybe even R14, R15.) Check what is expected 
+	// after a function call
 	__asm__ volatile ("MOV 0(R1), 22(R12)"); 
 	__asm__ volatile ("MOV R13, 24(R12)");
 	__asm__ volatile ("MOV R14, 26(R12)");
 	__asm__ volatile ("MOV R15, 28(R12)");
-
 	if (cur_reg == regs_0) {
 		cur_reg = regs_1;
 	}
 	else {
 		cur_reg = regs_0;
 	}
+
+	__asm__ volatile ("POP R12"); // we will use R12 for saving cur_reg
 }
 
 /**
@@ -151,6 +152,7 @@ void checkpoint() {
  */
 void restore_regs() {
 	unsigned *prev_reg;
+	unsigned pc;
 	if (cur_reg == NULL) {
 		cur_reg = regs_0;
 		return;
@@ -166,7 +168,6 @@ void restore_regs() {
 	__asm__ volatile ("MOV 28(R12), R15");
 	__asm__ volatile ("MOV 26(R12), R14");
 	__asm__ volatile ("MOV 24(R12), R13");
-	__asm__ volatile ("MOV 22(R12), R12");
 	__asm__ volatile ("MOV 20(R12), R11");
 	__asm__ volatile ("MOV 18(R12), R10");
 	__asm__ volatile ("MOV 16(R12), R9");
@@ -177,7 +178,9 @@ void restore_regs() {
 	__asm__ volatile ("MOV 6(R12), R4");
 	__asm__ volatile ("MOV 4(R12), R2");
 	__asm__ volatile ("MOV 2(R12), R1");
-	__asm__ volatile ("MOV 0(R12), PC");
+	__asm__ volatile ("MOV 0(R12), %0" :"=m"(pc));
+	__asm__ volatile ("MOV 22(R12), R12");
+	__asm__ volatile ("MOV %0, R0" :"=m"(pc));
 }
 
 /**
