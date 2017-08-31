@@ -131,12 +131,15 @@ void checkpoint() {
 	__asm__ volatile ("MOV R9, 16(R12)");
 	__asm__ volatile ("MOV R10, 18(R12)");
 	__asm__ volatile ("MOV R11, 20(R12)");
-	// TODO: Do we ever have to save R12, R13, and SR? (Or maybe even R14, R15.) Check what is expected 
-	// after a function call
+	// TODO: Do we ever have to save R12, R13, and SR? (Or maybe even R14, R15.) 
+	// Maybe if we only place checkpointing at the end of a basicblock,
+	// We do not need to save these
+	
 	__asm__ volatile ("MOV 0(R1), 22(R12)"); 
 	__asm__ volatile ("MOV R13, 24(R12)");
 	__asm__ volatile ("MOV R14, 26(R12)");
 	__asm__ volatile ("MOV R15, 28(R12)");
+
 	if (cur_reg == regs_0) {
 		cur_reg = regs_1;
 	}
@@ -144,6 +147,10 @@ void checkpoint() {
 		cur_reg = regs_0;
 	}
 
+	// TODO: Do not know for sure, doing conservative thing
+	__asm__ volatile ("MOV 4(R12), R2");
+	__asm__ volatile ("MOV 24(R12), R13");
+	
 	__asm__ volatile ("POP R12"); // we will use R12 for saving cur_reg
 }
 
