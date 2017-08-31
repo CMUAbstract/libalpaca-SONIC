@@ -69,6 +69,13 @@ __nv uint8_t* end_addr;
 __nv unsigned offset;
 uint8_t program_end = 0;
 __nv volatile isSafeKill = 1;
+
+__nv unsigned regs_0[16];
+__nv unsigned regs_1[16];
+__nv unsigned* cur_reg = NULL;
+
+
+
 /**
  * @brief Function to be called once to set the global range
  * ideally, it is enough to be called only once, however, currently it is called at the beginning of task_0
@@ -81,23 +88,10 @@ void set_global_range(uint8_t* _start_addr, uint8_t* _end_addr, uint8_t* _start_
 }
 
 /**
- * @brief Function to be invoked at the beginning of every task
+ * @brief Function resotring on power failure
  */
-void task_prologue()
-{
-	// increment version
-//	if(_numBoots == 0xFFFF){
-//		clear_isDirty();
-//		++_numBoots;
-//	}
-//	++_numBoots;
-	// commit if needed
-#if 0
-	// temp
-	if (!isSafeKill) {
-		while (1);
-	}
-#endif
+void restore() {
+	// restore NV globals
 	while (curctx->backup_index != 0) {
 		uint8_t* w_data_dest = backup[curctx->backup_index - 1];
 		uint8_t* w_data_src = w_data_dest - offset;
@@ -105,6 +99,85 @@ void task_prologue()
 		memcpy(w_data_dest, w_data_src, w_data_size);
 		--(curctx->backup_index);
 	}
+
+	// restore regs (including PC)
+	restore_regs();
+}
+
+/**
+ * @brief checkpoint regs
+ */
+void checkpoint() {
+	/* When you call this function:
+	 * LR gets stored in Stack
+	 * R4 gets stored in Stack
+	 * SP grows 4 by the above reason
+	 * SP gets saved to R4 */
+
+	__asm__ volatile ("PUSH R12"); // we will use R12 for saving cur_reg
+	__asm__ volatile ("MOV %0, R12" :"=m"(cur_reg)); 
+
+	// currently, R4 holds SP, and PC is at 
+	__asm__ volatile ("MOV 4(R1), 0(R12)"); // LR is going to be the next PC
+
+	__asm__ volatile ("MOV R1, 2(R12)"); // We need to add 6 to get the prev SP 
+	__asm__ volatile ("ADD #6, 2(R12)");
+	__asm__ volatile ("MOV R2, 4(R12)");
+//	__asm__ volatile ("MOV R3, 6(R12)"); //TODO: Can we skip R3? 
+//    __asm__ volatile ("PUSH 8(R1)");     // R4  will appear at 22(R1) [see note above]
+	__asm__ volatile ("MOV 2(R1), 6(R12)"); // R4
+	__asm__ volatile ("MOV R5, 8(R12)");
+	__asm__ volatile ("MOV R6, 10(R12)");
+	__asm__ volatile ("MOV R7, 12(R12)");
+	__asm__ volatile ("MOV R8, 14(R12)");
+	__asm__ volatile ("MOV R9, 16(R12)");
+	__asm__ volatile ("MOV R10, 18(R12)");
+	__asm__ volatile ("MOV R11, 20(R12)");
+	__asm__ volatile ("MOV 0(R1), 22(R12)"); 
+	__asm__ volatile ("MOV R13, 24(R12)");
+	__asm__ volatile ("MOV R14, 26(R12)");
+	__asm__ volatile ("MOV R15, 28(R12)");
+
+	if (cur_reg == regs_0) {
+		cur_reg = regs_1;
+	}
+	else {
+		cur_reg = regs_0;
+	}
+}
+
+/**
+ * @brief restore regs
+ */
+void restore_regs() {
+	unsigned *prev_reg;
+	if (cur_reg == NULL) {
+		cur_reg = regs_0;
+		return;
+	}
+	else if (cur_reg == regs_0) {
+		prev_reg = regs_1;
+	}
+	else {
+		prev_reg = regs_0;
+	}
+
+	__asm__ volatile ("MOV %0, R12" :"=m"(prev_reg)); 
+	__asm__ volatile ("MOV 28(R12), R15");
+	__asm__ volatile ("MOV 26(R12), R14");
+	__asm__ volatile ("MOV 24(R12), R13");
+	__asm__ volatile ("MOV 22(R12), R12");
+	__asm__ volatile ("MOV 20(R12), R11");
+	__asm__ volatile ("MOV 18(R12), R10");
+	__asm__ volatile ("MOV 16(R12), R9");
+	__asm__ volatile ("MOV 14(R12), R8");
+	__asm__ volatile ("MOV 12(R12), R7");
+	__asm__ volatile ("MOV 10(R12), R6");
+	__asm__ volatile ("MOV 8(R12), R5");
+	__asm__ volatile ("MOV 6(R12), R4");
+	__asm__ volatile ("MOV 4(R12), R2");
+	__asm__ volatile ("MOV 2(R12), R1");
+	__asm__ volatile ("MOV 0(R12), PC");
 }
 
 /**
@@ -128,14 +201,14 @@ void transition_to(void (*next_task)())
 	isSafeKill = 1;
 #endif
 	// fire task prologue
-//	task_prologue();
-//	// jump to next tast
-//	__asm__ volatile ( // volatile because output operands unused by C
-//			"mov #0x2400, r1\n"
-//			"br %[ntask]\n"
-//			:
-//			: [ntask] "r" (next_task)
-//			);
+	//	task_prologue();
+	//	// jump to next tast
+	//	__asm__ volatile ( // volatile because output operands unused by C
+	//			"mov #0x2400, r1\n"
+	//			"br %[ntask]\n"
+	//			:
+	//			: [ntask] "r" (next_task)
+	//			);
 }
 
 bool is_backed_up(uint8_t* addr) {
@@ -179,26 +252,20 @@ void check_before_write(uint8_t *addr, size_t size) {
 
 /** @brief Entry point upon reboot */
 int main() {
-	//_init();
 	init();
 
-	// (better alternative: transition_to(curctx->task);
-
-	// check for update
-	task_prologue();
+	// restore on power failure
+	restore();
 	while (!program_end) {
-#if 0
-		isSafeKill = 0;
-#endif
 		program_end = 1;
 		((void (*)(void))(curctx->task))();
 	}
 	// jump to curctx
-//	__asm__ volatile ( // volatile because output operands unused by C
-//			"br %[nt]\n"
-//			: /* no outputs */
-//			: [nt] "r" (curctx->task)
-//			);
+	//	__asm__ volatile ( // volatile because output operands unused by C
+	//			"br %[nt]\n"
+	//			: /* no outputs */
+	//			: [nt] "r" (curctx->task)
+	//			);
 
 	return 0; 
 }
@@ -207,7 +274,7 @@ void remove_check() {
 	unsigned* p = NULL;
 	unsigned* prev_word = NULL;
 	unsigned* cbw_address = &check_before_write; //function address of check_before_write()
-	
+
 	PRINTF("remove check start\r\n");
 	// iterate in word granularity
 	for (p = ROM_START; p < ROM_END; ++p) {

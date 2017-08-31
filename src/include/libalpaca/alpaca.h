@@ -34,6 +34,7 @@ typedef struct _context_t {
 extern volatile unsigned _numBoots;
 extern volatile unsigned num_dirty_gv;
 extern context_t * volatile curctx;
+void restore_regs();
 /** @brief LLVM generated function that clears all isDirty_ array */
 //extern void clear_isDirty();
 /** @brief Function called on every reboot
