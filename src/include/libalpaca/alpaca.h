@@ -19,8 +19,8 @@ typedef unsigned task_idx_t;
 
 /** @brief Execution context */
 typedef struct _context_t {
-	/** @brief current running task */
-	task_func_t *task;
+	/** @brief current register */
+	unsigned* cur_reg;
 	/** @brief indicate whether to jump to commit stage on power failure*/
 	volatile unsigned backup_index;
 } context_t;
@@ -34,6 +34,7 @@ typedef struct _context_t {
 extern volatile unsigned _numBoots;
 extern volatile unsigned num_dirty_gv;
 extern context_t * volatile curctx;
+//extern unsigned max_backup;
 void restore_regs();
 /** @brief LLVM generated function that clears all isDirty_ array */
 //extern void clear_isDirty();
