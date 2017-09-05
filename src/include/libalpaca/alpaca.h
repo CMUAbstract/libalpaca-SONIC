@@ -34,6 +34,8 @@ typedef struct _context_t {
 extern volatile unsigned _numBoots;
 extern volatile unsigned num_dirty_gv;
 extern context_t * volatile curctx;
+extern unsigned chkpt_book[6];
+extern uint8_t chkpt_status[6];
 //extern unsigned max_backup;
 void restore_regs();
 /** @brief LLVM generated function that clears all isDirty_ array */

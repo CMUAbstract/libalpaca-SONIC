@@ -51,7 +51,7 @@ __nv context_t context_1 = {0};
 //extern void task_0();
 __nv context_t context_0 = {
 	.cur_reg = NULL,
-	.backup_index = 0
+	.backup_index = 0,
 };
 /**
  * @brief current context
@@ -77,6 +77,9 @@ __nv volatile isSafeKill = 1;
 __nv unsigned regs_0[16];
 __nv unsigned regs_1[16];
 
+// size: temp
+__nv unsigned chkpt_book[6] = {0};
+__nv uint8_t chkpt_status[6] = {1,1,1,1,1,1};
 //unsigned max_backup = 0;
 /**
  * @brief Function to be called once to set the global range
@@ -89,6 +92,12 @@ void set_global_range(uint8_t* _start_addr, uint8_t* _end_addr, uint8_t* _start_
 	offset = _start_addr - _start_addr_bak;
 }
 
+void disable_checkpoints() {
+	for (unsigned i = 0; i < 6; ++i) {
+		if (!chkpt_book[i])
+			chkpt_status[i] = 0;
+	}
+}
 
 void clear_bitmask() {
 	my_memset(backup_bitmask, 0, BITMASK_SIZE*2);
@@ -188,7 +197,11 @@ void checkpoint() {
 	__asm__ volatile ("POP R12"); // we will use R12 for saving cur_reg
 }
 
-
+void print_book() {
+	for (unsigned i = 0; i < 10; ++i) {
+		
+	}
+}
 
 /**
  * @brief restore regs
@@ -206,6 +219,7 @@ void restore_regs() {
 	else {
 		prev_reg = regs_0;
 	}
+	chkpt_book[prev_reg[15]]++;
 
 	__asm__ volatile ("MOV %0, R12" :"=m"(prev_reg)); 
 	// TODO: do we need R15 - R12 / R2?
