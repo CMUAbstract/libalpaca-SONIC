@@ -78,8 +78,8 @@ __nv unsigned regs_0[16];
 __nv unsigned regs_1[16];
 
 // size: temp
-__nv unsigned chkpt_book[6] = {0};
-__nv uint8_t chkpt_status[6] = {1,1,1,1,1,1};
+__nv unsigned chkpt_book[65] = {0};
+__nv uint8_t chkpt_status[65] = {0}; // 1: skip
 //unsigned max_backup = 0;
 /**
  * @brief Function to be called once to set the global range
@@ -92,10 +92,11 @@ void set_global_range(uint8_t* _start_addr, uint8_t* _end_addr, uint8_t* _start_
 	offset = _start_addr - _start_addr_bak;
 }
 
-void disable_checkpoints() {
-	for (unsigned i = 0; i < 6; ++i) {
+void update_checkpoints() {
+	for (unsigned i = 0; i < 65; ++i) {
 		if (!chkpt_book[i])
-			chkpt_status[i] = 0;
+			chkpt_status[i] = 1;
+		chkpt_book[i] = 0;
 	}
 }
 
