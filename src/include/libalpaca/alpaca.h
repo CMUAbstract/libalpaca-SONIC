@@ -6,6 +6,8 @@
 #include <stdbool.h>
 #include <libmsp/mem.h>
 
+#define CHKPT_NUM 65
+
 typedef void (task_func_t)(void);
 typedef unsigned task_idx_t;
 
@@ -34,8 +36,8 @@ typedef struct _context_t {
 extern volatile unsigned _numBoots;
 extern volatile unsigned num_dirty_gv;
 extern context_t * volatile curctx;
-extern unsigned chkpt_book[65];
-extern uint8_t chkpt_status[65];
+extern int chkpt_book[CHKPT_NUM];
+extern uint8_t chkpt_status[CHKPT_NUM];
 //extern unsigned max_backup;
 void restore_regs();
 /** @brief LLVM generated function that clears all isDirty_ array */

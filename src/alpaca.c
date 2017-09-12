@@ -64,9 +64,10 @@ __nv volatile unsigned _numBoots = 0;
 
 __nv uint8_t* backup[MAX_TRACK];
 __nv unsigned backup_size[MAX_TRACK];
-
+#if 0 // temp for debugging
 __nv unsigned backup_bitmask[BITMASK_SIZE]={0};
 __nv unsigned bitmask_counter = 1;
+#endif
 
 __nv uint8_t* start_addr;
 __nv uint8_t* end_addr;
@@ -78,9 +79,11 @@ __nv unsigned regs_0[16];
 __nv unsigned regs_1[16];
 
 // size: temp
-__nv unsigned chkpt_book[65] = {0};
-__nv uint8_t chkpt_status[65] = {0}; // 1: skip
+__nv int chkpt_book[CHKPT_NUM] = {0};
+__nv uint8_t chkpt_status[CHKPT_NUM] = {0}; // 1: skip
 //unsigned max_backup = 0;
+
+
 /**
  * @brief Function to be called once to set the global range
  * ideally, it is enough to be called only once, however, currently it is called at the beginning of task_0
@@ -92,27 +95,51 @@ void set_global_range(uint8_t* _start_addr, uint8_t* _end_addr, uint8_t* _start_
 	offset = _start_addr - _start_addr_bak;
 }
 
-void update_checkpoints() {
-	for (unsigned i = 0; i < 65; ++i) {
+void update_checkpoints_naive() {
+	for (unsigned i = 0; i < CHKPT_NUM; ++i) {
 		if (!chkpt_book[i])
 			chkpt_status[i] = 1;
 		chkpt_book[i] = 0;
 	}
 }
 
+void update_checkpoints_hysteresis() {
+	for (unsigned i = 0; i < CHKPT_NUM; ++i) {
+		if (chkpt_book[i] > 5)
+			chkpt_status[i] = 1;
+	}
+}
+
+void update_checkpoints_pair() {
+	for (unsigned i = 0; i < CHKPT_NUM; ++i) {
+		if (chkpt_book[i] <= 0)
+			chkpt_status[i] = 1;
+		chkpt_book[i] = 0;
+	}
+}
+
+void update_hysteresis(unsigned last_chkpt) {
+	// last checkpoint should never be removed
+	chkpt_book[last_chkpt] = 0;
+}
+
+#if 0 // temp for debugging
 void clear_bitmask() {
 	my_memset(backup_bitmask, 0, BITMASK_SIZE*2);
 }
+#endif
 
 /**
  * @brief Function resotring on power failure
  */
 void restore() {
+#if 0 // temp for debugging
 	bitmask_counter++;
 	if (!bitmask_counter) {
 		bitmask_counter++;
 		clear_bitmask();
 	}
+#endif
 	PRINTF("restore!\r\n");
 	// restore NV globals
 	while (curctx->backup_index != 0) {
@@ -140,6 +167,7 @@ unsigned return_pc() {
  * @brief checkpoint regs
  */
 void checkpoint() {
+	unsigned r12;
 	/* When you call this function:
 	 * LR gets stored in Stack
 	 * R4 gets stored in Stack
@@ -151,12 +179,12 @@ void checkpoint() {
 	__asm__ volatile ("MOV %0, R12" :"=m"(curctx->cur_reg)); 
 
 	// currently, R4 holds SP, and PC is at 
-	__asm__ volatile ("MOV 14(R1), 0(R12)"); // LR is going to be the next PC
+	__asm__ volatile ("MOV 16(R1), 0(R12)"); // LR is going to be the next PC
 
 	__asm__ volatile ("MOV R1, 2(R12)"); // We need to add 6 to get the prev SP 
-	__asm__ volatile ("ADD #16, 2(R12)");
-//	__asm__ volatile ("MOV R2, 4(R12)");
-	__asm__ volatile ("MOV 12(R1), 6(R12)"); // R4
+	__asm__ volatile ("ADD #18, 2(R12)");
+		__asm__ volatile ("MOV R2, 4(R12)");
+	__asm__ volatile ("MOV 14(R1), 6(R12)"); // R4
 	__asm__ volatile ("MOV R5, 8(R12)");
 	__asm__ volatile ("MOV R6, 10(R12)");
 	__asm__ volatile ("MOV R7, 12(R12)");
@@ -167,40 +195,45 @@ void checkpoint() {
 	// TODO: Do we ever have to save R12, R13, and SR? (Or maybe even R14, R15.) 
 	// Maybe if we only place checkpointing at the end of a basicblock,
 	// We do not need to save these
-	
-//	__asm__ volatile ("MOV 0(R1), 22(R12)"); 
-//	__asm__ volatile ("MOV R13, 24(R12)");
-//	__asm__ volatile ("MOV R14, 26(R12)");
-//	__asm__ volatile ("MOV R15, 28(R12)");
 
+		__asm__ volatile ("MOV 0(R1), 22(R12)"); 
+		__asm__ volatile ("MOV R13, 24(R12)");
+		__asm__ volatile ("MOV R14, 26(R12)");
+		__asm__ volatile ("MOV R15, 28(R12)");
+
+		__asm__ volatile ("MOV R12, %0":"=m"(r12));
 	context_t *next_ctx;
 	next_ctx = (curctx == &context_0 ? &context_1 : &context_0 );
 	next_ctx->cur_reg = curctx->cur_reg == regs_0 ? regs_1 : regs_0;
 	next_ctx->backup_index = 0;
-	
-	// TODO: overflow handling needed
+
+#if 0 // temp for debugging
 	bitmask_counter++;
 	if (!bitmask_counter) {
 		bitmask_counter++;
 		clear_bitmask();
 	}
+#endif
 
 	// atomic update of curctx
 	curctx = next_ctx;
 
 	// TODO: Do not know for sure, doing conservative thing
 	// Do we need this?
-//	__asm__ volatile ("MOV 4(R12), R2");
-//	__asm__ volatile ("MOV %0, R12":"=m"(r12));
-//	__asm__ volatile ("MOV 24(R12), R13");
-//	__asm__ volatile ("MOV 26(R12), R14");
+		__asm__ volatile ("MOV %0, R12":"=m"(r12));
+		__asm__ volatile ("MOV 4(R12), R2");
+		__asm__ volatile ("MOV 24(R12), R13");
+		__asm__ volatile ("MOV 26(R12), R14");
+		__asm__ volatile ("MOV 28(R12), R15");
+
 	
+		//PMMCTL0 = PMMPW | PMMSWPOR;
 	__asm__ volatile ("POP R12"); // we will use R12 for saving cur_reg
 }
 
 void print_book() {
 	for (unsigned i = 0; i < 10; ++i) {
-		
+
 	}
 }
 
@@ -214,19 +247,26 @@ void restore_regs() {
 		curctx->cur_reg = regs_0;
 		return;
 	}
+	// TODO: potential bug point
 	else if (curctx->cur_reg == regs_0) {
 		prev_reg = regs_1;
 	}
 	else {
 		prev_reg = regs_0;
 	}
-	chkpt_book[prev_reg[15]]++;
-
+	chkpt_book[prev_reg[15]] += 2;
+	chkpt_book[curctx->cur_reg[15]]--;
+#if 0 //case 2.
+	//chkpt_book[prev_reg[15]] = 0;
+#endif
+#if 0 // case 1.
+	//	chkpt_book[prev_reg[15]]++;
+#endif
 	__asm__ volatile ("MOV %0, R12" :"=m"(prev_reg)); 
 	// TODO: do we need R15 - R12 / R2?
-//	__asm__ volatile ("MOV 28(R12), R15");
-//	__asm__ volatile ("MOV 26(R12), R14");
-//	__asm__ volatile ("MOV 24(R12), R13");
+		__asm__ volatile ("MOV 28(R12), R15");
+		__asm__ volatile ("MOV 26(R12), R14");
+		__asm__ volatile ("MOV 24(R12), R13");
 	__asm__ volatile ("MOV 20(R12), R11");
 	__asm__ volatile ("MOV 18(R12), R10");
 	__asm__ volatile ("MOV 16(R12), R9");
@@ -235,10 +275,10 @@ void restore_regs() {
 	__asm__ volatile ("MOV 10(R12), R6");
 	__asm__ volatile ("MOV 8(R12), R5");
 	__asm__ volatile ("MOV 6(R12), R4");
-//	__asm__ volatile ("MOV 4(R12), R2");
+		__asm__ volatile ("MOV 4(R12), R2");
 	__asm__ volatile ("MOV 2(R12), R1");
 	__asm__ volatile ("MOV 0(R12), %0" :"=m"(pc));
-//	__asm__ volatile ("MOV 22(R12), R12");
+		__asm__ volatile ("MOV 22(R12), R12");
 	__asm__ volatile ("MOV %0, R0" :"=m"(pc));
 }
 
@@ -274,13 +314,17 @@ void restore_regs() {
 //}
 
 bool is_backed_up(uint8_t* addr) {
+#if 0 // temp for debugging
 	unsigned index = (unsigned)(addr - start_addr);
 	return backup_bitmask[index] == bitmask_counter;
-//	for (unsigned i = 0; i < curctx->backup_index; ++i) {
-//		if (backup[i] == addr)
-//			return true;
-//	}
-//	return false;
+#endif
+#if 1 
+		for (unsigned i = 0; i < curctx->backup_index; ++i) {
+			if (backup[i] == addr)
+				return true;
+		}
+		return false;
+#endif
 }
 
 // append war_list and backup
@@ -292,13 +336,11 @@ void back_up(uint8_t* addr, size_t size) {
 	//append dirtylist
 	backup_size[curctx->backup_index] = size;
 	backup[curctx->backup_index++] = addr;
-	
+
+#if 0 // temp for debugging
 	unsigned index = (unsigned)(addr - start_addr);
 	backup_bitmask[index] = bitmask_counter;
-
-//	if (max_backup < curctx->backup_index) {
-//		max_backup = curctx->backup_index;
-//	}
+#endif
 }
 
 
