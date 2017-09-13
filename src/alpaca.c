@@ -75,12 +75,20 @@ __nv unsigned offset;
 uint8_t program_end = 0;
 __nv volatile isSafeKill = 1;
 
-__nv unsigned regs_0[16];
-__nv unsigned regs_1[16];
+__nv volatile unsigned regs_0[16];
+__nv volatile unsigned regs_1[16];
 
 // size: temp
 __nv int chkpt_book[CHKPT_NUM] = {0};
 __nv uint8_t chkpt_status[CHKPT_NUM] = {0}; // 1: skip
+// testing
+//__nv uint8_t chkpt_status[CHKPT_NUM] = {1, 1, 0, 1, 1,     0, 1, 1, 1, 1,
+//										1, 1, 1, 1, 1,     1, 1, 1, 1, 0,
+//										0, 1, 1, 1, 1,     1, 1, 1, 1, 1,
+//										1, 1, 1, 1, 1,     1, 1, 1, 1, 1,
+//										1, 1, 1, 1, 1,     1, 1, 1, 1, 1,
+//										1, 1, 1, 1, 1,     1, 1, 1, 1, 1,
+//										1, 1, 1, 1, 1}; // 1: skip
 //unsigned max_backup = 0;
 
 
@@ -133,6 +141,7 @@ void clear_bitmask() {
  * @brief Function resotring on power failure
  */
 void restore() {
+	// test
 #if 0 // temp for debugging
 	bitmask_counter++;
 	if (!bitmask_counter) {
@@ -171,7 +180,7 @@ void checkpoint() {
 	/* When you call this function:
 	 * LR gets stored in Stack
 	 * R4 gets stored in Stack
-	 * Then 10 is added to SP (for local use)
+	 * Then 12 is added to SP (for local use)
 	 * SP grows 4 by the above reason
 	 * SP gets saved to R4 */
 
@@ -254,8 +263,8 @@ void restore_regs() {
 	else {
 		prev_reg = regs_0;
 	}
-	chkpt_book[prev_reg[15]] += 2;
-	chkpt_book[curctx->cur_reg[15]]--;
+//	chkpt_book[prev_reg[15]] += 2;
+//	chkpt_book[curctx->cur_reg[15]]--;
 #if 0 //case 2.
 	//chkpt_book[prev_reg[15]] = 0;
 #endif
