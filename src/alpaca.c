@@ -64,7 +64,7 @@ __nv volatile unsigned _numBoots = 0;
 
 __nv uint8_t* backup[MAX_TRACK];
 __nv unsigned backup_size[MAX_TRACK];
-#if 0 // temp for debugging
+#if 1 // temp for debugging
 __nv unsigned backup_bitmask[BITMASK_SIZE]={0};
 __nv unsigned bitmask_counter = 1;
 #endif
@@ -131,7 +131,7 @@ void update_hysteresis(unsigned last_chkpt) {
 	chkpt_book[last_chkpt] = 0;
 }
 
-#if 0 // temp for debugging
+#if 1 // temp for debugging
 void clear_bitmask() {
 	my_memset(backup_bitmask, 0, BITMASK_SIZE*2);
 }
@@ -142,7 +142,7 @@ void clear_bitmask() {
  */
 void restore() {
 	// test
-#if 0 // temp for debugging
+#if 1 // temp for debugging
 	bitmask_counter++;
 	if (!bitmask_counter) {
 		bitmask_counter++;
@@ -216,7 +216,7 @@ void checkpoint() {
 	next_ctx->cur_reg = curctx->cur_reg == regs_0 ? regs_1 : regs_0;
 	next_ctx->backup_index = 0;
 
-#if 0 // temp for debugging
+#if 1 // temp for debugging
 	bitmask_counter++;
 	if (!bitmask_counter) {
 		bitmask_counter++;
@@ -263,8 +263,8 @@ void restore_regs() {
 	else {
 		prev_reg = regs_0;
 	}
-//	chkpt_book[prev_reg[15]] += 2;
-//	chkpt_book[curctx->cur_reg[15]]--;
+	chkpt_book[prev_reg[15]] += 2;
+	chkpt_book[curctx->cur_reg[15]]--;
 #if 0 //case 2.
 	//chkpt_book[prev_reg[15]] = 0;
 #endif
@@ -323,11 +323,11 @@ void restore_regs() {
 //}
 
 bool is_backed_up(uint8_t* addr) {
-#if 0 // temp for debugging
+#if 1 // temp for debugging
 	unsigned index = (unsigned)(addr - start_addr);
 	return backup_bitmask[index] == bitmask_counter;
 #endif
-#if 1 
+#if 0 
 		for (unsigned i = 0; i < curctx->backup_index; ++i) {
 			if (backup[i] == addr)
 				return true;
@@ -344,9 +344,10 @@ void back_up(uint8_t* addr, size_t size) {
 	memcpy(addr_bak, addr, size);
 	//append dirtylist
 	backup_size[curctx->backup_index] = size;
-	backup[curctx->backup_index++] = addr;
+	backup[curctx->backup_index] = addr;
+	curctx->backup_index++;
 
-#if 0 // temp for debugging
+#if 1 // temp for debugging
 	unsigned index = (unsigned)(addr - start_addr);
 	backup_bitmask[index] = bitmask_counter;
 #endif
