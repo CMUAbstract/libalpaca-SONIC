@@ -78,9 +78,16 @@ __nv volatile isSafeKill = 1;
 __nv volatile unsigned regs_0[16];
 __nv volatile unsigned regs_1[16];
 
+typedef struct _chkpt_info {
+	unsigned backup; 
+	uint8_t* fix_point;
+	unsigned fix_to;
+} chkpt_info;
 // size: temp
 __nv int chkpt_book[CHKPT_NUM] = {0};
 __nv uint8_t chkpt_status[CHKPT_NUM] = {0}; // 1: skip
+__nv chkpt_info chkpt_list[CHKPT_NUM] = {{.backup = 0x7777, .fix_point = 0x7777, .fix_to = 0x7777}};
+
 // testing
 //__nv uint8_t chkpt_status[CHKPT_NUM] = {1, 1, 0, 1, 1,     0, 1, 1, 1, 1,
 //										1, 1, 1, 1, 1,     1, 1, 1, 1, 0,
@@ -89,7 +96,6 @@ __nv uint8_t chkpt_status[CHKPT_NUM] = {0}; // 1: skip
 //										1, 1, 1, 1, 1,     1, 1, 1, 1, 1,
 //										1, 1, 1, 1, 1,     1, 1, 1, 1, 1,
 //										1, 1, 1, 1, 1}; // 1: skip
-//unsigned max_backup = 0;
 
 
 /**
@@ -129,6 +135,10 @@ void update_checkpoints_pair() {
 void update_hysteresis(unsigned last_chkpt) {
 	// last checkpoint should never be removed
 	chkpt_book[last_chkpt] = 0;
+}
+
+void make_table(uint8_t* addr) {
+	// test dummy
 }
 
 #if 1 // temp for debugging
