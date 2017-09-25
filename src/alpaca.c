@@ -17,6 +17,11 @@
 #define READ_FIRST 2
 #define WAR 3
 
+#define CHKPT_ACTIVE 0
+#define CHKPT_USELESS 1
+#define CHKPT_INACTIVE 2
+#define CHKPT_NEEDED 3
+
 #define MAX_TRACK 3000 // temp
 #define ROM_START 0x4400
 #define ROM_END 0xBB80
@@ -80,12 +85,10 @@ __nv volatile unsigned regs_1[16];
 
 typedef struct _chkpt_info {
 	unsigned backup; 
-	uint8_t* fix_point;
+	unsigned* fix_point;
 	unsigned fix_to;
 } chkpt_info;
 // size: temp
-__nv int chkpt_book[CHKPT_NUM] = {0};
-__nv uint8_t chkpt_status[CHKPT_NUM] = {0}; // 1: skip
 __nv chkpt_info chkpt_list[CHKPT_NUM] = {{.backup = 0x7777, .fix_point = 0x7777, .fix_to = 0x7777}};
 
 // testing
@@ -96,6 +99,36 @@ __nv chkpt_info chkpt_list[CHKPT_NUM] = {{.backup = 0x7777, .fix_point = 0x7777,
 //										1, 1, 1, 1, 1,     1, 1, 1, 1, 1,
 //										1, 1, 1, 1, 1,     1, 1, 1, 1, 1,
 //										1, 1, 1, 1, 1}; // 1: skip
+
+__nv chkpt_iterator = 0;
+__nv chkpt_patching = 0;
+
+void patch_checkpoints();
+// TODO: surround this with checkpoints
+void end_run() {
+	chkpt_patching = 1;
+	patch_checkpoints();
+}
+void patch_checkpoints() {
+	for (; chkpt_iterator < CHKPT_NUM; ++chkpt_iterator) {
+		// TODO: if CHKPT_NUM gets correctly set, you do not need this if
+		if (chkpt_list[chkpt_iterator].fix_to != 0) {
+			if (chkpt_status[chkpt_iterator] == CHKPT_USELESS) {
+				// remove checkpoint
+				chkpt_list[chkpt_iterator].backup = *(chkpt_list[chkpt_iterator].fix_point);
+				*(chkpt_list[chkpt_iterator].fix_point) = chkpt_list[chkpt_iterator].fix_to;
+				chkpt_status[chkpt_iterator] = CHKPT_INACTIVE;
+			}
+			else if (chkpt_status[chkpt_iterator] == CHKPT_NEEDED) {
+				*(chkpt_list[chkpt_iterator].fix_point) = chkpt_list[chkpt_iterator].backup;
+				chkpt_status[chkpt_iterator] = CHKPT_ACTIVE;
+			}
+		}
+	}
+	chkpt_iterator = 0;
+	chkpt_patching = 0;
+}
+
 
 
 /**
@@ -112,7 +145,7 @@ void set_global_range(uint8_t* _start_addr, uint8_t* _end_addr, uint8_t* _start_
 void update_checkpoints_naive() {
 	for (unsigned i = 0; i < CHKPT_NUM; ++i) {
 		if (!chkpt_book[i])
-			chkpt_status[i] = 1;
+			chkpt_status[i] = CHKPT_USELESS;
 		chkpt_book[i] = 0;
 	}
 }
@@ -120,14 +153,14 @@ void update_checkpoints_naive() {
 void update_checkpoints_hysteresis() {
 	for (unsigned i = 0; i < CHKPT_NUM; ++i) {
 		if (chkpt_book[i] > 5)
-			chkpt_status[i] = 1;
+			chkpt_status[i] = CHKPT_USELESS;
 	}
 }
 
 void update_checkpoints_pair() {
 	for (unsigned i = 0; i < CHKPT_NUM; ++i) {
 		if (chkpt_book[i] <= 0)
-			chkpt_status[i] = 1;
+			chkpt_status[i] = CHKPT_USELESS;
 		chkpt_book[i] = 0;
 	}
 }
@@ -159,6 +192,10 @@ void restore() {
 		clear_bitmask();
 	}
 #endif
+	// finish patching checkpoint if it was doing it
+	if (chkpt_patching) {
+		patch_checkpoints();
+	}
 	PRINTF("restore!\r\n");
 	// restore NV globals
 	while (curctx->backup_index != 0) {
@@ -202,7 +239,7 @@ void checkpoint() {
 
 	__asm__ volatile ("MOV R1, 2(R12)"); // We need to add 6 to get the prev SP 
 	__asm__ volatile ("ADD #18, 2(R12)");
-		__asm__ volatile ("MOV R2, 4(R12)");
+	__asm__ volatile ("MOV R2, 4(R12)");
 	__asm__ volatile ("MOV 14(R1), 6(R12)"); // R4
 	__asm__ volatile ("MOV R5, 8(R12)");
 	__asm__ volatile ("MOV R6, 10(R12)");
@@ -215,12 +252,12 @@ void checkpoint() {
 	// Maybe if we only place checkpointing at the end of a basicblock,
 	// We do not need to save these
 
-		__asm__ volatile ("MOV 0(R1), 22(R12)"); 
-		__asm__ volatile ("MOV R13, 24(R12)");
-		__asm__ volatile ("MOV R14, 26(R12)");
-		__asm__ volatile ("MOV R15, 28(R12)");
+	__asm__ volatile ("MOV 0(R1), 22(R12)"); 
+	__asm__ volatile ("MOV R13, 24(R12)");
+	__asm__ volatile ("MOV R14, 26(R12)");
+	__asm__ volatile ("MOV R15, 28(R12)");
 
-		__asm__ volatile ("MOV R12, %0":"=m"(r12));
+	__asm__ volatile ("MOV R12, %0":"=m"(r12));
 	context_t *next_ctx;
 	next_ctx = (curctx == &context_0 ? &context_1 : &context_0 );
 	next_ctx->cur_reg = curctx->cur_reg == regs_0 ? regs_1 : regs_0;
@@ -239,14 +276,14 @@ void checkpoint() {
 
 	// TODO: Do not know for sure, doing conservative thing
 	// Do we need this?
-		__asm__ volatile ("MOV %0, R12":"=m"(r12));
-		__asm__ volatile ("MOV 4(R12), R2");
-		__asm__ volatile ("MOV 24(R12), R13");
-		__asm__ volatile ("MOV 26(R12), R14");
-		__asm__ volatile ("MOV 28(R12), R15");
+	__asm__ volatile ("MOV %0, R12":"=m"(r12));
+	__asm__ volatile ("MOV 4(R12), R2");
+	__asm__ volatile ("MOV 24(R12), R13");
+	__asm__ volatile ("MOV 26(R12), R14");
+	__asm__ volatile ("MOV 28(R12), R15");
 
-	
-		//PMMCTL0 = PMMPW | PMMSWPOR;
+
+	//PMMCTL0 = PMMPW | PMMSWPOR;
 	__asm__ volatile ("POP R12"); // we will use R12 for saving cur_reg
 }
 
@@ -283,9 +320,9 @@ void restore_regs() {
 #endif
 	__asm__ volatile ("MOV %0, R12" :"=m"(prev_reg)); 
 	// TODO: do we need R15 - R12 / R2?
-		__asm__ volatile ("MOV 28(R12), R15");
-		__asm__ volatile ("MOV 26(R12), R14");
-		__asm__ volatile ("MOV 24(R12), R13");
+	__asm__ volatile ("MOV 28(R12), R15");
+	__asm__ volatile ("MOV 26(R12), R14");
+	__asm__ volatile ("MOV 24(R12), R13");
 	__asm__ volatile ("MOV 20(R12), R11");
 	__asm__ volatile ("MOV 18(R12), R10");
 	__asm__ volatile ("MOV 16(R12), R9");
@@ -294,10 +331,10 @@ void restore_regs() {
 	__asm__ volatile ("MOV 10(R12), R6");
 	__asm__ volatile ("MOV 8(R12), R5");
 	__asm__ volatile ("MOV 6(R12), R4");
-		__asm__ volatile ("MOV 4(R12), R2");
+	__asm__ volatile ("MOV 4(R12), R2");
 	__asm__ volatile ("MOV 2(R12), R1");
 	__asm__ volatile ("MOV 0(R12), %0" :"=m"(pc));
-		__asm__ volatile ("MOV 22(R12), R12");
+	__asm__ volatile ("MOV 22(R12), R12");
 	__asm__ volatile ("MOV %0, R0" :"=m"(pc));
 }
 
@@ -338,11 +375,11 @@ bool is_backed_up(uint8_t* addr) {
 	return backup_bitmask[index] == bitmask_counter;
 #endif
 #if 0 
-		for (unsigned i = 0; i < curctx->backup_index; ++i) {
-			if (backup[i] == addr)
-				return true;
-		}
-		return false;
+	for (unsigned i = 0; i < curctx->backup_index; ++i) {
+		if (backup[i] == addr)
+			return true;
+	}
+	return false;
 #endif
 }
 
