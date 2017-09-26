@@ -83,13 +83,9 @@ __nv volatile isSafeKill = 1;
 __nv volatile unsigned regs_0[16];
 __nv volatile unsigned regs_1[16];
 
-typedef struct _chkpt_info {
-	unsigned backup; 
-	unsigned* fix_point;
-	unsigned fix_to;
-} chkpt_info;
 // size: temp
-__nv chkpt_info chkpt_list[CHKPT_NUM] = {{.backup = 0x7777, .fix_point = 0x7777, .fix_to = 0x7777}};
+//__nv chkpt_info chkpt_list[CHKPT_NUM] = {{.backup = 0x7777, .fix_point = 0x7777, .fix_to = 0x7777}};
+
 
 // testing
 //__nv uint8_t chkpt_status[CHKPT_NUM] = {1, 1, 0, 1, 1,     0, 1, 1, 1, 1,
@@ -159,9 +155,11 @@ void update_checkpoints_hysteresis() {
 
 void update_checkpoints_pair() {
 	for (unsigned i = 0; i < CHKPT_NUM; ++i) {
-		if (chkpt_book[i] <= 0)
-			chkpt_status[i] = CHKPT_USELESS;
-		chkpt_book[i] = 0;
+		if (chkpt_status[i] == CHKPT_ACTIVE) {
+			if (chkpt_book[i] <= 0)
+				chkpt_status[i] = CHKPT_USELESS;
+			chkpt_book[i] = 0;
+		}
 	}
 }
 

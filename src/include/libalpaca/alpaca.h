@@ -6,7 +6,7 @@
 #include <stdbool.h>
 #include <libmsp/mem.h>
 
-#define CHKPT_NUM 65
+//#define CHKPT_NUM 65
 
 typedef void (task_func_t)(void);
 typedef unsigned task_idx_t;
@@ -18,6 +18,11 @@ typedef unsigned task_idx_t;
 	/** @brief index (only used for showing progress) */
 //	task_idx_t idx;
 //} task_t;
+typedef struct _chkpt_info {
+	unsigned backup; 
+	unsigned* fix_point;
+	unsigned fix_to;
+} chkpt_info;
 
 /** @brief Execution context */
 typedef struct _context_t {
@@ -36,8 +41,10 @@ typedef struct _context_t {
 extern volatile unsigned _numBoots;
 extern volatile unsigned num_dirty_gv;
 extern context_t * volatile curctx;
-extern int chkpt_book[CHKPT_NUM];
-extern uint8_t chkpt_status[CHKPT_NUM];
+extern int chkpt_book[];
+extern uint8_t chkpt_status[];
+extern chkpt_info chkpt_list[];
+extern unsigned CHKPT_NUM;
 //extern unsigned max_backup;
 void restore_regs();
 /** @brief LLVM generated function that clears all isDirty_ array */
