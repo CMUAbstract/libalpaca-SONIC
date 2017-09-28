@@ -11,7 +11,7 @@
 #define CHKPT_NEEDED 3
 
 #define MAX_TRACK 3000 // temp
-#define PACK_BYTE 4
+#define PACK_BYTE 8
 
 /**
  * @brief dirtylist to save src address
@@ -53,6 +53,7 @@ __nv context_t * volatile curctx = &context_0;
 __nv volatile unsigned _numBoots = 0;
 
 __nv uint8_t* backup[MAX_TRACK];
+// TODO: This can be uint8_t
 __nv unsigned backup_size[MAX_TRACK];
 #if 1 // temp for debugging
 //__nv unsigned backup_bitmask[BITMASK_SIZE]={0};
@@ -383,12 +384,15 @@ bool is_backed_up(uint8_t* addr) {
 void back_up(uint8_t* addr, size_t size) {
 	// TODO: TMP. We can optimize this
 	if (size < PACK_BYTE) size = PACK_BYTE;
-	//backup
-	uint8_t* addr_bak = addr - offset;
-	memcpy(addr_bak, addr, size);
+
+	//backup the pack
+	uint8_t* addr_aligned = (uint8_t*)((unsigned)addr & ~(PACK_BYTE - 1));
+	uint8_t* addr_bak = addr_aligned - offset;
+	memcpy(addr_bak, addr_aligned, size);
 	//append dirtylist
 	backup_size[curctx->backup_index] = size;
-	backup[curctx->backup_index] = addr;
+	//backup[curctx->backup_index] = addr;
+	backup[curctx->backup_index] = addr_aligned;
 	curctx->backup_index++;
 
 	unsigned index = (unsigned)(addr - start_addr);
