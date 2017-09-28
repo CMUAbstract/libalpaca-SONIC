@@ -44,6 +44,8 @@ extern context_t * volatile curctx;
 extern int chkpt_book[];
 extern uint8_t chkpt_status[];
 extern chkpt_info chkpt_list[];
+extern uint8_t backup_bitmask[];
+extern unsigned global_size;
 extern unsigned CHKPT_NUM;
 //extern unsigned max_backup;
 void restore_regs();

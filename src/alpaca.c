@@ -3,19 +3,7 @@
 #include <libio/log.h>
 #include <msp430.h>
 
-#ifndef LIBCHAIN_ENABLE_DIAGNOSTICS
-#define LIBCHAIN_PRINTF(...)
-#else
-#include <stdio.h>
-#define LIBCHAIN_PRINTF printf
-#endif
-
 #include "alpaca.h"
-
-#define IDLE 0
-#define WRITE_FIRST 1
-#define READ_FIRST 2
-#define WAR 3
 
 #define CHKPT_ACTIVE 0
 #define CHKPT_USELESS 1
@@ -23,10 +11,7 @@
 #define CHKPT_NEEDED 3
 
 #define MAX_TRACK 3000 // temp
-#define ROM_START 0x4400
-#define ROM_END 0xBB80
-#define CALL_INST 0x12B0
-#define BITMASK_SIZE 4000
+#define PACK_BYTE 4
 
 /**
  * @brief dirtylist to save src address
@@ -70,8 +55,9 @@ __nv volatile unsigned _numBoots = 0;
 __nv uint8_t* backup[MAX_TRACK];
 __nv unsigned backup_size[MAX_TRACK];
 #if 1 // temp for debugging
-__nv unsigned backup_bitmask[BITMASK_SIZE]={0};
-__nv unsigned bitmask_counter = 1;
+//__nv unsigned backup_bitmask[BITMASK_SIZE]={0};
+__nv uint8_t bitmask_counter = 1;
+__nv uint8_t need_bitmask_clear = 0;
 #endif
 
 __nv uint8_t* start_addr;
@@ -136,6 +122,11 @@ void set_global_range(uint8_t* _start_addr, uint8_t* _end_addr, uint8_t* _start_
 	start_addr = _start_addr;
 	end_addr = _end_addr;
 	offset = _start_addr - _start_addr_bak;
+	// sanity check
+	// TODO: offset calculation can be removed
+	while(offset != global_size) {
+		PRINTF("global size calculation is wrong: %u vs %u\r\n", offset, global_size);
+	}
 }
 
 void update_checkpoints_naive() {
@@ -174,7 +165,9 @@ void make_table(uint8_t* addr) {
 
 #if 1 // temp for debugging
 void clear_bitmask() {
-	my_memset(backup_bitmask, 0, BITMASK_SIZE*2);
+	//PRINTF("clear\r\n");
+	// TODO: what if it is too large for one E-cycle?
+	memset(backup_bitmask, 0, ((unsigned)((global_size+(PACK_BYTE -1))/PACK_BYTE))*sizeof(bitmask_counter));
 }
 #endif
 
@@ -186,26 +179,27 @@ void restore() {
 #if 1 // temp for debugging
 	bitmask_counter++;
 	if (!bitmask_counter) {
+		need_bitmask_clear = 1;
 		bitmask_counter++;
+	}
+	if (need_bitmask_clear) {
 		clear_bitmask();
+		need_bitmask_clear = 0;
 	}
 #endif
 	// finish patching checkpoint if it was doing it
 	if (chkpt_patching) {
 		patch_checkpoints();
 	}
-	PRINTF("restore!\r\n");
 	// restore NV globals
 	while (curctx->backup_index != 0) {
 		uint8_t* w_data_dest = backup[curctx->backup_index - 1];
-		PRINTF("restoring %x\r\n", w_data_dest);
 		uint8_t* w_data_src = w_data_dest - offset;
 		unsigned w_data_size = backup_size[curctx->backup_index - 1];
 		memcpy(w_data_dest, w_data_src, w_data_size);
 		--(curctx->backup_index);
 	}
 
-	PRINTF("restore global done!\r\n");
 	// restore regs (including PC)
 	restore_regs();
 }
@@ -264,8 +258,12 @@ void checkpoint() {
 #if 1 // temp for debugging
 	bitmask_counter++;
 	if (!bitmask_counter) {
+		need_bitmask_clear = 1;
 		bitmask_counter++;
+	}
+	if (need_bitmask_clear) {
 		clear_bitmask();
+		need_bitmask_clear = 0;
 	}
 #endif
 
@@ -370,7 +368,7 @@ void restore_regs() {
 bool is_backed_up(uint8_t* addr) {
 #if 1 // temp for debugging
 	unsigned index = (unsigned)(addr - start_addr);
-	return backup_bitmask[index] == bitmask_counter;
+	return backup_bitmask[(unsigned)(index/PACK_BYTE)] == bitmask_counter;
 #endif
 #if 0 
 	for (unsigned i = 0; i < curctx->backup_index; ++i) {
@@ -383,7 +381,8 @@ bool is_backed_up(uint8_t* addr) {
 
 // append war_list and backup
 void back_up(uint8_t* addr, size_t size) {
-	PRINTF("back up: %x\r\n", addr);
+	// TODO: TMP. We can optimize this
+	if (size < PACK_BYTE) size = PACK_BYTE;
 	//backup
 	uint8_t* addr_bak = addr - offset;
 	memcpy(addr_bak, addr, size);
@@ -392,7 +391,19 @@ void back_up(uint8_t* addr, size_t size) {
 	backup[curctx->backup_index] = addr;
 	curctx->backup_index++;
 
-#if 1 // temp for debugging
+	unsigned index = (unsigned)(addr - start_addr);
+	backup_bitmask[(unsigned)(index/PACK_BYTE)] = bitmask_counter;
+
+
+#if 0
+	//backup
+	uint8_t* addr_bak = addr - offset;
+	memcpy(addr_bak, addr, size);
+	//append dirtylist
+	backup_size[curctx->backup_index] = size;
+	backup[curctx->backup_index] = addr;
+	curctx->backup_index++;
+
 	unsigned index = (unsigned)(addr - start_addr);
 	backup_bitmask[index] = bitmask_counter;
 #endif
@@ -439,26 +450,3 @@ void check_before_write(uint8_t *addr, size_t size) {
 //	return 0; 
 //}
 
-void remove_check() {
-	unsigned* p = NULL;
-	unsigned* prev_word = NULL;
-	unsigned* cbw_address = &check_before_write; //function address of check_before_write()
-
-	PRINTF("remove check start\r\n");
-	// iterate in word granularity
-	for (p = ROM_START; p < ROM_END; ++p) {
-		if (*p == CALL_INST) { // CALL inst
-			PRINTF("CALL INST!\r\n");
-			prev_word = p;
-		}
-		else if (prev_word != NULL) { // if prev word was CALL inst
-			//check the call address
-			if (*p == cbw_address) {
-				PRINTF("CHANGE TO NOP!\r\n");
-				*p = 0x0343; // nop
-				*prev_word = 0x0343; // nop
-			}
-			prev_word = NULL;
-		}
-	}
-}
