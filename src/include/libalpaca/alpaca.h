@@ -24,6 +24,11 @@ typedef struct _chkpt_info {
 	unsigned fix_to;
 } chkpt_info;
 
+typedef struct _vars {
+	// TODO: maybe uint8_t will be enough
+	unsigned cutted_num;
+	unsigned nopable_address;
+} vars;
 /** @brief Execution context */
 typedef struct _context_t {
 	/** @brief current register */

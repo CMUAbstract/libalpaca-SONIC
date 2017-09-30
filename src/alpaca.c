@@ -11,7 +11,7 @@
 #define CHKPT_NEEDED 3
 
 #define MAX_TRACK 3000 // temp
-#define PACK_BYTE 8
+#define PACK_BYTE 4
 
 /**
  * @brief dirtylist to save src address
@@ -72,6 +72,9 @@ __nv volatile unsigned regs_1[16];
 
 // size: temp
 //__nv chkpt_info chkpt_list[CHKPT_NUM] = {{.backup = 0x7777, .fix_point = 0x7777, .fix_to = 0x7777}};
+// temp
+__nv uint32_t chkpt_cutvar[55] = {0x66666666};
+__nv vars var_record[30] = {{.cutted_num = 0x5555, .nopable_address = 0x5555}};
 
 
 // testing
