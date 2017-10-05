@@ -74,8 +74,12 @@ __nv volatile unsigned regs_1[16];
 //__nv chkpt_info chkpt_list[CHKPT_NUM] = {{.backup = 0x7777, .fix_point = 0x7777, .fix_to = 0x7777}};
 // temp
 __nv uint32_t chkpt_cutvar[55] = {0x66666666};
-__nv vars var_record[30] = {{.cutted_num = 0x5555, .nopable_address = 0x5555}};
+__nv vars var_record[VAR_NUM] = {{.cutted_num = 0x5555, 
+																	.nopable_address = 0x5555}};
 
+// temp size
+__nv uint8_t* nvstack[10];
+__nv unsigned nv_sp = 0;
 
 // testing
 //__nv uint8_t chkpt_status[CHKPT_NUM] = {1, 1, 0, 1, 1,     0, 1, 1, 1, 1,
@@ -86,34 +90,104 @@ __nv vars var_record[30] = {{.cutted_num = 0x5555, .nopable_address = 0x5555}};
 //										1, 1, 1, 1, 1,     1, 1, 1, 1, 1,
 //										1, 1, 1, 1, 1}; // 1: skip
 
-__nv chkpt_iterator = 0;
-__nv chkpt_patching = 0;
+__nv unsigned chkpt_iterator = 0;
+//__nv unsigned var_iterator = 0;
+__nv uint8_t chkpt_patching = 0;
+//__nv uint8_t logging_patching = 0;
 
 void patch_checkpoints();
 // TODO: surround this with checkpoints
 void end_run() {
-	chkpt_patching = 1;
-	patch_checkpoints();
+//	chkpt_patching = 1;
+//	patch_checkpoints();
 }
+
+/*
+ *	push return address to nv stack
+ */
+void push_to_nvstack() {
+	/* When you call some function:
+	 * LR gets stored in Stack
+	 * R4 gets stored in Stack
+	 * SP goes to R4
+	 * so stack looks like
+	 *
+	 *			 SP
+	 * R4--> R4
+	 *
+	 * Then you called this function, so
+	 *
+	 *		  	  	   SP
+	 * R4'--> R4 --> R4
+	 *			 
+	 */
+	// TODO: is R13 safe?
+	__asm__ volatile ("MOV 0(R4), R13"); 
+	__asm__ volatile ("MOV 2(R13), %0" :"=m"(nvstack[nv_sp])); 
+	// TODO: this is not robust to power failure!
+	nv_sp++;
+}
+
+/*
+ *	pop nvstack and return
+ */
+void return_to_nvstack() {
+}
+
 void patch_checkpoints() {
 	for (; chkpt_iterator < CHKPT_NUM; ++chkpt_iterator) {
 		// TODO: if CHKPT_NUM gets correctly set, you do not need this if
 		if (chkpt_list[chkpt_iterator].fix_to != 0) {
 			if (chkpt_status[chkpt_iterator] == CHKPT_USELESS) {
 				// remove checkpoint
-				chkpt_list[chkpt_iterator].backup = *(chkpt_list[chkpt_iterator].fix_point);
-				*(chkpt_list[chkpt_iterator].fix_point) = chkpt_list[chkpt_iterator].fix_to;
+				chkpt_list[chkpt_iterator].backup = 
+					*(chkpt_list[chkpt_iterator].fix_point);
+				*(chkpt_list[chkpt_iterator].fix_point) = 
+					chkpt_list[chkpt_iterator].fix_to;
+
+//				var_iterator = 1;	
+
 				chkpt_status[chkpt_iterator] = CHKPT_INACTIVE;
 			}
 			else if (chkpt_status[chkpt_iterator] == CHKPT_NEEDED) {
-				*(chkpt_list[chkpt_iterator].fix_point) = chkpt_list[chkpt_iterator].backup;
+				// TODO: deal with restoring logging
+				*(chkpt_list[chkpt_iterator].fix_point) = 
+					chkpt_list[chkpt_iterator].backup;
 				chkpt_status[chkpt_iterator] = CHKPT_ACTIVE;
 			}
 		}
+//		if (var_iterator) {
+//			uint32_t chkpt_bv = chkpt_cutvar[chkpt_iterator];
+//			// patch var_records when removing chkpts
+//			// Note: var_iterator starts with 1
+//			if (chkpt_bv) {
+//				for (; var_iterator <= VAR_NUM; ++var_iterator) {
+//					// TODO: This can be faster by reversing the bits
+//					if (chkpt_bv & ( (uint32_t)1 << (VAR_NUM - var_iterator) ) ) {
+//						// this chkpt was related to var_iterator's var
+//						var_record[var_iterator-1].cutted_num--;
+//						// TODO: what if this happen multiple times?
+//					}
+//				}
+//			}
+//			var_iterator = 0;
+//		}
 	}
 	chkpt_iterator = 0;
+//	logging_patching = 1;
 	chkpt_patching = 0;
+//	patch_logging();
 }
+
+//void patch_logging() {
+//	for (; var_iterator < VAR_NUM; ++var_iterator) {
+//		if (!var_record[var_iterator].cutted_num) {
+//			*(var_record[var_iterator].nopable_address) = (uint32_t)NOP;
+//		}
+//	}
+//
+//	logging_patching = 0;
+//}
 
 
 
@@ -192,9 +266,12 @@ void restore() {
 	}
 #endif
 	// finish patching checkpoint if it was doing it
-	if (chkpt_patching) {
-		patch_checkpoints();
-	}
+//	if (chkpt_patching) {
+//		patch_checkpoints();
+//	}
+//	if (logging_patching) {
+//		patch_logging();
+//	}
 	// restore NV globals
 	while (curctx->backup_index != 0) {
 		uint8_t* w_data_dest = backup[curctx->backup_index - 1];

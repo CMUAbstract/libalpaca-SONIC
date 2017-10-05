@@ -7,6 +7,8 @@
 #include <libmsp/mem.h>
 
 //#define CHKPT_NUM 65
+#define VAR_NUM 30
+#define NOP 0x43034303
 
 typedef void (task_func_t)(void);
 typedef unsigned task_idx_t;
@@ -27,7 +29,7 @@ typedef struct _chkpt_info {
 typedef struct _vars {
 	// TODO: maybe uint8_t will be enough
 	unsigned cutted_num;
-	unsigned nopable_address;
+	uint32_t* nopable_address;
 } vars;
 /** @brief Execution context */
 typedef struct _context_t {
@@ -54,6 +56,9 @@ extern unsigned global_size;
 extern unsigned CHKPT_NUM;
 //extern unsigned max_backup;
 void restore_regs();
+void patch_logging();
+void push_to_nvstack();
+void return_to_nvstack();
 /** @brief LLVM generated function that clears all isDirty_ array */
 //extern void clear_isDirty();
 /** @brief Function called on every reboot
