@@ -359,7 +359,6 @@ void checkpoint() {
 	__asm__ volatile ("MOV 26(R12), R14");
 	__asm__ volatile ("MOV 28(R12), R15");
 
-
 	//PMMCTL0 = PMMPW | PMMSWPOR;
 	__asm__ volatile ("POP R12"); // we will use R12 for saving cur_reg
 }
