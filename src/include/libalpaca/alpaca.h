@@ -36,7 +36,9 @@ typedef struct _context_t {
 	/** @brief current register */
 	unsigned* cur_reg;
 	/** @brief indicate whether to jump to commit stage on power failure*/
-	volatile unsigned backup_index;
+	volatile unsigned backup_index;	
+	uint8_t* special_stack[20];
+	unsigned special_sp;
 } context_t;
 
 //extern uint8_t* data_src[];

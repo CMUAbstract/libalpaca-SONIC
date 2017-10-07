@@ -79,8 +79,12 @@ __nv vars var_record[VAR_NUM] = {{.cutted_num = 0x5555,
 
 // temp size
 __nv uint8_t* nvstack[10];
-__nv unsigned nv_sp = 0;
 
+// temp size
+unsigned special_stack[20];
+uint8_t* special_sp = &special_stack[0];
+
+//
 // testing
 //__nv uint8_t chkpt_status[CHKPT_NUM] = {1, 1, 0, 1, 1,     0, 1, 1, 1, 1,
 //										1, 1, 1, 1, 1,     1, 1, 1, 1, 0,
@@ -100,38 +104,6 @@ void patch_checkpoints();
 void end_run() {
 //	chkpt_patching = 1;
 //	patch_checkpoints();
-}
-
-/*
- *	push return address to nv stack
- */
-void push_to_nvstack() {
-	/* When you call some function:
-	 * LR gets stored in Stack
-	 * R4 gets stored in Stack
-	 * SP goes to R4
-	 * so stack looks like
-	 *
-	 *			 SP
-	 * R4--> R4
-	 *
-	 * Then you called this function, so
-	 *
-	 *		  	  	   SP
-	 * R4'--> R4 --> R4
-	 *			 
-	 */
-	// TODO: is R13 safe?
-	__asm__ volatile ("MOV 0(R4), R13"); 
-	__asm__ volatile ("MOV 2(R13), %0" :"=m"(nvstack[nv_sp])); 
-	// TODO: this is not robust to power failure!
-	nv_sp++;
-}
-
-/*
- *	pop nvstack and return
- */
-void return_to_nvstack() {
 }
 
 void patch_checkpoints() {
@@ -202,9 +174,11 @@ void set_global_range(uint8_t* _start_addr, uint8_t* _end_addr, uint8_t* _start_
 	offset = _start_addr - _start_addr_bak;
 	// sanity check
 	// TODO: offset calculation can be removed
+#if 0 // TEMP disable
 	while(offset != global_size) {
 		PRINTF("global size calculation is wrong: %u vs %u\r\n", offset, global_size);
 	}
+#endif
 }
 
 void update_checkpoints_naive() {
@@ -300,20 +274,23 @@ void checkpoint() {
 	/* When you call this function:
 	 * LR gets stored in Stack
 	 * R4 gets stored in Stack
-	 * Then 12 is added to SP (for local use)
-	 * SP grows 4 by the above reason
+	 * Then 14 is added to SP (for local use)
+	 * R12 gets stored in Stack
 	 * SP gets saved to R4 */
-
+	// TODO: Nubers will change!
+	// Check correctness!!
 	__asm__ volatile ("PUSH R12"); // we will use R12 for saving cur_reg
 	__asm__ volatile ("MOV %0, R12" :"=m"(curctx->cur_reg)); 
 
 	// currently, R4 holds SP, and PC is at 
-	__asm__ volatile ("MOV 16(R1), 0(R12)"); // LR is going to be the next PC
+	__asm__ volatile ("MOV 18(R1), 0(R12)"); // LR is going to be the next PC
 
 	__asm__ volatile ("MOV R1, 2(R12)"); // We need to add 6 to get the prev SP 
-	__asm__ volatile ("ADD #18, 2(R12)");
+	__asm__ volatile ("ADD #20, 2(R12)");
+	// TODO: do we need to save R2 (SR)? Because it is chaned while we
+	// subtract from SP anyway (guess it does not matters)
 	__asm__ volatile ("MOV R2, 4(R12)");
-	__asm__ volatile ("MOV 14(R1), 6(R12)"); // R4
+	__asm__ volatile ("MOV 16(R1), 6(R12)"); // R4
 	__asm__ volatile ("MOV R5, 8(R12)");
 	__asm__ volatile ("MOV R6, 10(R12)");
 	__asm__ volatile ("MOV R7, 12(R12)");
@@ -331,12 +308,20 @@ void checkpoint() {
 	__asm__ volatile ("MOV R15, 28(R12)");
 
 	__asm__ volatile ("MOV R12, %0":"=m"(r12));
+
+	// copy the special stack
+	unsigned stack_size = special_sp - (uint8_t*)special_stack;
+	if (stack_size)
+		memcpy(curctx->special_stack, special_stack, stack_size);
+	
+	// copy the sp as well
+	curctx->special_sp = special_sp;
+
 	context_t *next_ctx;
 	next_ctx = (curctx == &context_0 ? &context_1 : &context_0 );
 	next_ctx->cur_reg = curctx->cur_reg == regs_0 ? regs_1 : regs_0;
 	next_ctx->backup_index = 0;
 
-#if 1 // temp for debugging
 	bitmask_counter++;
 	if (!bitmask_counter) {
 		need_bitmask_clear = 1;
@@ -346,7 +331,6 @@ void checkpoint() {
 		clear_bitmask();
 		need_bitmask_clear = 0;
 	}
-#endif
 
 	// atomic update of curctx
 	curctx = next_ctx;
@@ -373,28 +357,39 @@ void print_book() {
  * @brief restore regs
  */
 void restore_regs() {
-	unsigned *prev_reg;
+	context_t* prev_ctx;
 	unsigned pc;
 	if (curctx->cur_reg == NULL) {
 		curctx->cur_reg = regs_0;
 		return;
 	}
 	// TODO: potential bug point
-	else if (curctx->cur_reg == regs_0) {
-		prev_reg = regs_1;
+	//else if (curctx->cur_reg == regs_0) {
+	else if (curctx == &context_0) {
+		//prev_reg = regs_1;
+		prev_ctx = &context_1;
 	}
 	else {
-		prev_reg = regs_0;
+		prev_ctx = &context_0;
+		//prev_reg = regs_0;
 	}
-	chkpt_book[prev_reg[15]] += 2;
+	chkpt_book[prev_ctx->cur_reg[15]] += 2;
 	chkpt_book[curctx->cur_reg[15]]--;
+
+	// copy the sp as well
+	special_sp = prev_ctx->special_sp;
+	// copy the special stack
+	unsigned stack_size = special_sp - (uint8_t*)special_stack;
+	if (stack_size)
+		memcpy(special_stack, prev_ctx->special_stack, stack_size);
+
 #if 0 //case 2.
 	//chkpt_book[prev_reg[15]] = 0;
 #endif
 #if 0 // case 1.
 	//	chkpt_book[prev_reg[15]]++;
 #endif
-	__asm__ volatile ("MOV %0, R12" :"=m"(prev_reg)); 
+	__asm__ volatile ("MOV %0, R12" :"=m"(prev_ctx->cur_reg)); 
 	// TODO: do we need R15 - R12 / R2?
 	__asm__ volatile ("MOV 28(R12), R15");
 	__asm__ volatile ("MOV 26(R12), R14");
