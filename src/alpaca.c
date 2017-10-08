@@ -82,7 +82,7 @@ __nv uint8_t* nvstack[10];
 
 // temp size
 unsigned special_stack[20];
-uint8_t* special_sp = &special_stack[0];
+uint8_t* special_sp = (uint8_t*)(&special_stack[0]) - 2;
 
 //
 // testing
@@ -310,7 +310,7 @@ void checkpoint() {
 	__asm__ volatile ("MOV R12, %0":"=m"(r12));
 
 	// copy the special stack
-	unsigned stack_size = special_sp - (uint8_t*)special_stack;
+	unsigned stack_size = special_sp + 2 - (uint8_t*)special_stack;
 	if (stack_size)
 		memcpy(curctx->special_stack, special_stack, stack_size);
 	
@@ -379,7 +379,7 @@ void restore_regs() {
 	// copy the sp as well
 	special_sp = prev_ctx->special_sp;
 	// copy the special stack
-	unsigned stack_size = special_sp - (uint8_t*)special_stack;
+	unsigned stack_size = special_sp + 2 - (uint8_t*)special_stack;
 	if (stack_size)
 		memcpy(special_stack, prev_ctx->special_stack, stack_size);
 
