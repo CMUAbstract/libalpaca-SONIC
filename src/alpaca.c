@@ -81,7 +81,7 @@ __nv vars var_record[VAR_NUM] = {{.cutted_num = 0x5555,
 __nv uint8_t* nvstack[10];
 
 // temp size
-unsigned special_stack[20];
+unsigned special_stack[100];
 uint8_t* special_sp = ((uint8_t*)(&special_stack[0])) - 2;
 
 //
@@ -251,7 +251,6 @@ void restore() {
 		uint8_t* w_data_dest = backup[curctx->backup_index - 1];
 		uint8_t* w_data_src = w_data_dest - offset;
 		unsigned w_data_size = backup_size[curctx->backup_index - 1];
-		PRINTF("restore: %u, %u, %u\r\n", w_data_dest, w_data_src, w_data_size);
 		memcpy(w_data_dest, w_data_src, w_data_size);
 		--(curctx->backup_index);
 	}
@@ -379,7 +378,6 @@ void restore_regs() {
 
 	// copy the sp as well
 	special_sp = prev_ctx->special_sp;
-	PRINTF("sp %u\r\n", special_sp);
 	// copy the special stack
 	unsigned stack_size = special_sp + 2 - (uint8_t*)special_stack;
 	if (stack_size)
@@ -474,7 +472,6 @@ void back_up(uint8_t* addr, size_t size) {
 	unsigned index = (unsigned)(addr - start_addr);
 	backup_bitmask[(unsigned)(index/PACK_BYTE)] = bitmask_counter;
 
-	PRINTF("bu %u, %u\r\n", addr_aligned, size);
 
 #if 0
 	//backup
