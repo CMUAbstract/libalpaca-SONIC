@@ -14,6 +14,7 @@ typedef void (task_func_t)(void);
 typedef unsigned task_idx_t;
 
 extern unsigned chkpt_count;
+extern uint8_t mode_status;
 /** @brief Task */
 //typedef struct {
 	/** @brief function address */
@@ -39,7 +40,8 @@ typedef struct _context_t {
 	/** @brief indicate whether to jump to commit stage on power failure*/
 	volatile unsigned backup_index;	
 	uint8_t* special_stack[100];
-	unsigned special_sp;
+	uint8_t* special_sp;
+	uint8_t* stack_tracer;
 } context_t;
 
 //extern uint8_t* data_src[];
