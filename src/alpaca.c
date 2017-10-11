@@ -268,8 +268,8 @@ void restore() {
 	while (curctx->backup_index != 0) {
 		uint8_t* w_data_dest = backup[curctx->backup_index - 1];
 		uint8_t* w_data_src = w_data_dest - offset;
-		unsigned w_data_size = backup_size[curctx->backup_index - 1];
-		memcpy(w_data_dest, w_data_src, w_data_size);
+		//unsigned w_data_size = backup_size[curctx->backup_index - 1];
+		memcpy(w_data_dest, w_data_src, PACK_BYTE);
 		--(curctx->backup_index);
 	}
 
@@ -495,50 +495,30 @@ void restore_regs() {
 //}
 
 bool is_backed_up(uint8_t* addr) {
-#if 1 // temp for debugging
 	unsigned index = (unsigned)(addr - start_addr);
 	return backup_bitmask[(unsigned)(index/PACK_BYTE)] == bitmask_counter;
-#endif
-#if 0 
-	for (unsigned i = 0; i < curctx->backup_index; ++i) {
-		if (backup[i] == addr)
-			return true;
-	}
-	return false;
-#endif
 }
 
 // append war_list and backup
 void back_up(uint8_t* addr, size_t size) {
 	// TODO: TMP. We can optimize this
-	if (size < PACK_BYTE) size = PACK_BYTE;
+	if (size > PACK_BYTE) {
+		PRINTF("SIZE is %\r\n", size);
+		while(1);
+	}
 
 	//backup the pack
 	uint8_t* addr_aligned = (uint8_t*)((unsigned)addr & ~(PACK_BYTE - 1));
 	uint8_t* addr_bak = addr_aligned - offset;
-	memcpy(addr_bak, addr_aligned, size);
+	memcpy(addr_bak, addr_aligned, PACK_BYTE);
 	//append dirtylist
-	backup_size[curctx->backup_index] = size;
+	//backup_size[curctx->backup_index] = size;
 	//backup[curctx->backup_index] = addr;
 	backup[curctx->backup_index] = addr_aligned;
 	curctx->backup_index++;
 
 	unsigned index = (unsigned)(addr - start_addr);
 	backup_bitmask[(unsigned)(index/PACK_BYTE)] = bitmask_counter;
-
-
-#if 0
-	//backup
-	uint8_t* addr_bak = addr - offset;
-	memcpy(addr_bak, addr, size);
-	//append dirtylist
-	backup_size[curctx->backup_index] = size;
-	backup[curctx->backup_index] = addr;
-	curctx->backup_index++;
-
-	unsigned index = (unsigned)(addr - start_addr);
-	backup_bitmask[index] = bitmask_counter;
-#endif
 }
 
 
