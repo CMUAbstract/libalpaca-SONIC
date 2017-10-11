@@ -78,12 +78,13 @@ __nv vars var_record[VAR_NUM] = {{.cutted_num = 0x5555,
 																	.nopable_address = 0x5555}};
 
 // temp size
-__nv uint8_t* nvstack[10];
+__nv uint8_t* nvstack[100];
 
 // temp size
-unsigned special_stack[100];
+unsigned special_stack[40];
 uint8_t* special_sp = ((uint8_t*)(&special_stack[0])) - 2;
 
+__nv uint8_t isNoProgress = 0;
 //
 // testing
 //__nv uint8_t chkpt_status[CHKPT_NUM] = {1, 1, 0, 1, 1,     0, 1, 1, 1, 1,
@@ -99,6 +100,7 @@ __nv unsigned chkpt_iterator = 0;
 __nv uint8_t chkpt_patching = 0;
 //__nv uint8_t logging_patching = 0;
 
+#if 0 // temp disable!
 void patch_checkpoints();
 // TODO: surround this with checkpoints
 void end_run() {
@@ -150,6 +152,7 @@ void patch_checkpoints() {
 	chkpt_patching = 0;
 //	patch_logging();
 }
+#endif
 
 //void patch_logging() {
 //	for (; var_iterator < VAR_NUM; ++var_iterator) {
@@ -195,12 +198,15 @@ void update_checkpoints_hysteresis() {
 			chkpt_status[i] = CHKPT_USELESS;
 	}
 }
-
+__nv unsigned chkpt_count = 0;
 void update_checkpoints_pair() {
+	chkpt_count = 0;
 	for (unsigned i = 0; i < CHKPT_NUM; ++i) {
 		if (chkpt_status[i] == CHKPT_ACTIVE) {
 			if (chkpt_book[i] <= 0)
 				chkpt_status[i] = CHKPT_USELESS;
+			else
+				chkpt_count++;
 			chkpt_book[i] = 0;
 		}
 	}
@@ -227,7 +233,6 @@ void clear_bitmask() {
  * @brief Function resotring on power failure
  */
 void restore() {
-	// test
 #if 1 // temp for debugging
 	bitmask_counter++;
 	if (!bitmask_counter) {
@@ -311,6 +316,7 @@ void checkpoint() {
 
 	// copy the special stack
 	unsigned stack_size = special_sp + 2 - (uint8_t*)special_stack;
+	//PRINTF("stack size: %u\r\n", stack_size);
 	if (stack_size)
 		memcpy(curctx->special_stack, special_stack, stack_size);
 	
@@ -333,6 +339,7 @@ void checkpoint() {
 	}
 
 	// atomic update of curctx
+	isNoProgress = 0;
 	curctx = next_ctx;
 
 	// TODO: Do not know for sure, doing conservative thing
@@ -373,8 +380,18 @@ void restore_regs() {
 		prev_ctx = &context_0;
 		//prev_reg = regs_0;
 	}
-	chkpt_book[prev_ctx->cur_reg[15]] += 2;
-	chkpt_book[curctx->cur_reg[15]]--;
+
+	if (isNoProgress) {
+		// it is stuck
+		// restore last passed chkpt
+		chkpt_status[curctx->cur_reg[15]] = CHKPT_ACTIVE;
+		chkpt_book[curctx->cur_reg[15]] = 2;
+	}
+	else {
+		chkpt_book[prev_ctx->cur_reg[15]] += 2;
+		chkpt_book[curctx->cur_reg[15]]--;
+	}
+	isNoProgress = 1;
 
 	// copy the sp as well
 	special_sp = prev_ctx->special_sp;
