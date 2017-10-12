@@ -81,7 +81,7 @@ __nv uint8_t* nvstack[100];
 // temp size
 __nv unsigned special_stack[40];
 uint8_t* special_sp = ((uint8_t*)(&special_stack[0])) - 2;
-//__nv uint8_t* stack_tracer = ((uint8_t*)(&special_stack[0])) - 2;
+__nv uint8_t* stack_tracer = ((uint8_t*)(&special_stack[0])) - 2;
 
 __nv context_t context_0 = {
 	.cur_reg = NULL,
@@ -303,14 +303,14 @@ void checkpoint() {
 	__asm__ volatile ("MOV %0, R12" :"=m"(curctx->cur_reg)); 
 
 	// currently, R4 holds SP, and PC is at 
-	__asm__ volatile ("MOV 18(R1), 0(R12)"); // LR is going to be the next PC
+	__asm__ volatile ("MOV 26(R1), 0(R12)"); // LR is going to be the next PC
 
 	__asm__ volatile ("MOV R1, 2(R12)"); // We need to add 6 to get the prev SP 
-	__asm__ volatile ("ADD #20, 2(R12)");
+	__asm__ volatile ("ADD #28, 2(R12)");
 	// TODO: do we need to save R2 (SR)? Because it is chaned while we
 	// subtract from SP anyway (guess it does not matters)
 	__asm__ volatile ("MOV R2, 4(R12)");
-	__asm__ volatile ("MOV 16(R1), 6(R12)"); // R4
+	__asm__ volatile ("MOV 24(R1), 6(R12)"); // R4
 	__asm__ volatile ("MOV R5, 8(R12)");
 	__asm__ volatile ("MOV R6, 10(R12)");
 	__asm__ volatile ("MOV R7, 12(R12)");
@@ -330,18 +330,18 @@ void checkpoint() {
 	__asm__ volatile ("MOV R12, %0":"=m"(r12));
 
 	// copy the special stack
-	unsigned stack_size = special_sp  + 2 - (uint8_t*)special_stack;
+	//unsigned stack_size = special_sp  + 2 - (uint8_t*)special_stack;
+	////PRINTF("stack size: %u\r\n", stack_size);
+	//if (stack_size)
+	//	memcpy(curctx->special_stack, special_stack, stack_size);
+	uint8_t* last_mod_stack = curctx->stack_tracer > stack_tracer ?
+													stack_tracer : curctx->stack_tracer;
+	unsigned stack_size = special_sp - last_mod_stack;
+	unsigned st_offset = last_mod_stack + 2 - (uint8_t*)special_stack;
 	//PRINTF("stack size: %u\r\n", stack_size);
 	if (stack_size)
-		memcpy(curctx->special_stack, special_stack, stack_size);
-//	uint8_t* last_mod_stack = curctx->stack_tracer > stack_tracer ?
-//													stack_tracer : curctx->stack_tracer;
-//	unsigned stack_size = special_sp - last_mod_stack;
-//	unsigned st_offset = last_mod_stack  + 2 - (uint8_t*)special_stack;
-//	//PRINTF("stack size: %u\r\n", stack_size);
-//	if (stack_size)
-//		memcpy(((uint8_t*)curctx->special_stack) + st_offset, 
-//				((uint8_t*)special_stack) + st_offset, stack_size);
+		memcpy(((uint8_t*)curctx->special_stack) + st_offset, 
+				((uint8_t*)special_stack) + st_offset, stack_size);
 
 	// copy the sp as well
 	curctx->special_sp = special_sp;
@@ -351,7 +351,8 @@ void checkpoint() {
 	next_ctx = (curctx == &context_0 ? &context_1 : &context_0 );
 	next_ctx->cur_reg = curctx->cur_reg == regs_0 ? regs_1 : regs_0;
 	next_ctx->backup_index = 0;
-//	next_ctx->stack_tracer = stack_tracer;
+	// TEMP disable. is it always correct without this???
+	next_ctx->stack_tracer = stack_tracer;
 
 	bitmask_counter++;
 	if (!bitmask_counter) {
@@ -366,7 +367,7 @@ void checkpoint() {
 	// atomic update of curctx
 	isNoProgress = 0;
 	curctx = next_ctx;
-//	stack_tracer = special_sp;
+	stack_tracer = special_sp;
 
 	// TODO: Do not know for sure, doing conservative thing
 	// Do we need this?
@@ -437,15 +438,15 @@ void restore_regs() {
 	special_sp = prev_ctx->special_sp;
 	// copy the special stack
 	//unsigned stack_size = special_sp + 2 - (uint8_t*)special_stack;
-//	unsigned stack_size = special_sp - stack_tracer;
-//	unsigned st_offset = stack_tracer  + 2 - (uint8_t*)special_stack;
-//	if (stack_size)
-//		memcpy(((uint8_t*)special_stack) + st_offset, 
-//				((uint8_t*)prev_ctx->special_stack) + st_offset, stack_size);
-	unsigned stack_size = special_sp + 2 - (uint8_t*)special_stack;
+	unsigned stack_size = special_sp - stack_tracer;
+	unsigned st_offset = stack_tracer  + 2 - (uint8_t*)special_stack;
 	if (stack_size)
-		memcpy(special_stack, 
-				prev_ctx->special_stack, stack_size);
+		memcpy(((uint8_t*)special_stack) + st_offset, 
+				((uint8_t*)prev_ctx->special_stack) + st_offset, stack_size);
+//	unsigned stack_size = special_sp + 2 - (uint8_t*)special_stack;
+//	if (stack_size)
+//		memcpy(special_stack, 
+//				prev_ctx->special_stack, stack_size);
 
 #if 0 //case 2.
 	//chkpt_book[prev_reg[15]] = 0;
