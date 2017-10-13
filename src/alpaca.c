@@ -18,47 +18,12 @@
 #define MAX_TRACK 3000 // temp
 #define PACK_BYTE 4
 
-/**
- * @brief dirtylist to save src address
- */
-//__nv uint8_t** data_src_base = &data_src;
-/**
- * @brief dirtylist to save dst address
- */
-//__nv uint8_t** data_dest_base = &data_dest;
-/**
- * @brief dirtylist to save size
- */
-//__nv unsigned* data_size_base = &data_size;
-
-/**
- * @brief len of dirtylist
- */
-//__nv volatile unsigned num_dirty_gv=0;
-
-/**
- * @brief double buffered context
- */
-/**
- * @brief double buffered context
- */
-//extern void task_0();
-/**
- * @brief current context
- */
-/**
- * @brief current version which updates at every reboot or transition
- */
-__nv volatile unsigned _numBoots = 0;
-
 __nv uint8_t* backup[MAX_TRACK];
 // TODO: This can be uint8_t
 //__nv unsigned backup_size[MAX_TRACK];
-#if 1 // temp for debugging
 //__nv unsigned backup_bitmask[BITMASK_SIZE]={0};
 __nv uint8_t bitmask_counter = 1;
 __nv uint8_t need_bitmask_clear = 0;
-#endif
 
 __nv uint8_t* start_addr;
 __nv uint8_t* end_addr;
@@ -512,12 +477,10 @@ bool is_backed_up(uint8_t* addr) {
 
 // append war_list and backup
 void back_up(uint8_t* addr) {
-	// TODO: TMP. We can optimize this
-//	if (size < PACK_BYTE) size = PACK_BYTE;
-//	if (size > PACK_BYTE) {
-//		PRINTF("SIZE is %\r\n", size);
-//		while(1);
-//	}
+	// If backup array overflows, we consider it as a power failure.
+	if (curctx->backup_index == MAX_TRACK) {
+		PMMCTL0 = PMMPW | PMMSWPOR;
+	}
 
 	//backup the pack
 	uint8_t* addr_aligned = (uint8_t*)((unsigned)addr & ~(PACK_BYTE - 1));
