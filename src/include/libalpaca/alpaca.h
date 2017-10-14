@@ -13,6 +13,7 @@
 typedef void (task_func_t)(void);
 typedef unsigned task_idx_t;
 
+extern void end_run();
 extern unsigned chkpt_count;
 extern uint8_t mode_status;
 /** @brief Task */

@@ -75,26 +75,22 @@ __nv unsigned chkpt_iterator = 0;
 __nv uint8_t chkpt_patching = 0;
 //__nv uint8_t logging_patching = 0;
 
-#if 0 // temp disable!
-void patch_checkpoints();
-// TODO: surround this with checkpoints
-void end_run() {
-//	chkpt_patching = 1;
-//	patch_checkpoints();
-}
-
 void patch_checkpoints() {
 	for (; chkpt_iterator < CHKPT_NUM; ++chkpt_iterator) {
 		// TODO: if CHKPT_NUM gets correctly set, you do not need this if
 		if (chkpt_list[chkpt_iterator].fix_to != 0) {
 			if (chkpt_status[chkpt_iterator] == CHKPT_USELESS) {
 				// remove checkpoint
-				chkpt_list[chkpt_iterator].backup = 
-					*(chkpt_list[chkpt_iterator].fix_point);
-				*(chkpt_list[chkpt_iterator].fix_point) = 
-					chkpt_list[chkpt_iterator].fix_to;
+				PRINTF("%x to %x\r\n", chkpt_list[chkpt_iterator].fix_point, chkpt_list[chkpt_iterator].fix_to);
+				if (*(chkpt_list[chkpt_iterator].fix_point) 
+						!= chkpt_list[chkpt_iterator].fix_to) {
+					chkpt_list[chkpt_iterator].backup = 
+						*(chkpt_list[chkpt_iterator].fix_point);
+					*(chkpt_list[chkpt_iterator].fix_point) = 
+						chkpt_list[chkpt_iterator].fix_to;
+				}
 
-//				var_iterator = 1;	
+				//				var_iterator = 1;	
 
 				chkpt_status[chkpt_iterator] = CHKPT_INACTIVE;
 			}
@@ -105,29 +101,25 @@ void patch_checkpoints() {
 				chkpt_status[chkpt_iterator] = CHKPT_ACTIVE;
 			}
 		}
-//		if (var_iterator) {
-//			uint32_t chkpt_bv = chkpt_cutvar[chkpt_iterator];
-//			// patch var_records when removing chkpts
-//			// Note: var_iterator starts with 1
-//			if (chkpt_bv) {
-//				for (; var_iterator <= VAR_NUM; ++var_iterator) {
-//					// TODO: This can be faster by reversing the bits
-//					if (chkpt_bv & ( (uint32_t)1 << (VAR_NUM - var_iterator) ) ) {
-//						// this chkpt was related to var_iterator's var
-//						var_record[var_iterator-1].cutted_num--;
-//						// TODO: what if this happen multiple times?
-//					}
-//				}
-//			}
-//			var_iterator = 0;
-//		}
+		//		if (var_iterator) {
+		//			uint32_t chkpt_bv = chkpt_cutvar[chkpt_iterator];
+		//			// patch var_records when removing chkpts
+		//			// Note: var_iterator starts with 1
+		//			if (chkpt_bv) {
+		//				for (; var_iterator <= VAR_NUM; ++var_iterator) {
+		//					// TODO: This can be faster by reversing the bits
+		//					if (chkpt_bv & ( (uint32_t)1 << (VAR_NUM - var_iterator) ) ) {
+		//						// this chkpt was related to var_iterator's var
+		//						var_record[var_iterator-1].cutted_num--;
+		//						// TODO: what if this happen multiple times?
+		//					}
+		//				}
+		//			}
+		//			var_iterator = 0;
+		//		}
 	}
-	chkpt_iterator = 0;
-//	logging_patching = 1;
-	chkpt_patching = 0;
-//	patch_logging();
+	//	patch_logging();
 }
-#endif
 
 //void patch_logging() {
 //	for (; var_iterator < VAR_NUM; ++var_iterator) {
@@ -174,21 +166,75 @@ void update_checkpoints_hysteresis() {
 	}
 }
 __nv unsigned chkpt_count = 0;
-void update_checkpoints_pair() {
+__nv unsigned prev_chkpt_cnt = 0;
+__nv unsigned prev_prev_chkpt_cnt = 0;
+
+__nv unsigned chkpt_i = 0;
+
+typedef struct _chkpt_history {
+	unsigned chkpt_prev;
+	unsigned chkpt_pprev;
+	uint8_t needUpdate;
+} chkpt_history;
+
+__nv chkpt_history hist0 = {.chkpt_prev = 0xFFFFFFFF, 
+	.chkpt_pprev = 0xFFFFFFFF, .needUpdate = 0};
+__nv chkpt_history hist1 = {.chkpt_prev = 0xFFFFFFFF, 
+	.chkpt_pprev = 0xFFFFFFFF, .needUpdate = 0};
+__nv chkpt_history* cur_hist = &hist0;
+
+void update_checkpoints_pair();
+void checkpoint();
+
+void end_run() {
+	cur_hist->needUpdate = 1;
 	chkpt_count = 0;
-	for (unsigned i = 0; i < CHKPT_NUM; ++i) {
-		if (chkpt_status[i] == CHKPT_ACTIVE) {
-			if (chkpt_book[i] < CHKPT_IMMORTAL) {
-				if (chkpt_book[i] <= 0)
-					chkpt_status[i] = CHKPT_USELESS;
-				else
+	chkpt_i = 0;
+
+	chkpt_iterator = 0;
+	chkpt_patching = 0;
+
+	checkpoint();
+	update_checkpoints_pair();
+}
+
+void binary_patch(unsigned c_cnt) {
+	// heuristic. if same 2 time
+	if (c_cnt == cur_hist->chkpt_prev) {	
+		PRINTF("patching binary\r\n");
+		patch_checkpoints();
+	}
+
+	chkpt_history* next_hist;
+	next_hist = (cur_hist == &hist0) ? &hist1 : &hist0;
+	next_hist->chkpt_pprev = cur_hist->chkpt_prev;
+	next_hist->chkpt_prev = c_cnt;
+	next_hist->needUpdate = 0;
+	cur_hist = next_hist;
+}
+
+void update_checkpoints_pair() {
+	if (cur_hist->needUpdate) {
+		while (chkpt_i < CHKPT_NUM) {
+			if (chkpt_status[chkpt_i] == CHKPT_ACTIVE) {
+				if (chkpt_book[chkpt_i] < CHKPT_IMMORTAL) {
+					if (chkpt_book[chkpt_i] <= 0)
+						chkpt_status[chkpt_i] = CHKPT_USELESS;
+					else
+						chkpt_count++;
+					++chkpt_i;
+					chkpt_book[chkpt_i-1] = 0;
+				}
+				else {
 					chkpt_count++;
-				chkpt_book[i] = 0;
+					++chkpt_i;
+				}
 			}
 			else {
-				chkpt_count++;
+				++chkpt_i;
 			}
 		}
+		binary_patch(chkpt_count);
 	}
 }
 
@@ -223,6 +269,9 @@ void restore() {
 		clear_bitmask();
 		need_bitmask_clear = 0;
 	}
+	//	if (cur_hist->needUpdate) {
+	//		update_checkpoints_pair();
+	//	}
 #endif
 	// finish patching checkpoint if it was doing it
 	//	if (chkpt_patching) {
@@ -244,13 +293,6 @@ void restore() {
 	restore_regs();
 }
 
-
-unsigned return_pc() {
-	unsigned pc;
-	__asm__ volatile ("MOV 2(R1), %0":"=m"(pc));
-
-	return pc;
-}
 /**
  * @brief checkpoint regs
  */
@@ -300,7 +342,7 @@ void checkpoint() {
 	//if (stack_size)
 	//	memcpy(curctx->special_stack, special_stack, stack_size);
 	uint8_t* last_mod_stack = curctx->stack_tracer > stack_tracer ?
-													stack_tracer : curctx->stack_tracer;
+		stack_tracer : curctx->stack_tracer;
 	unsigned stack_size = special_sp - last_mod_stack;
 	unsigned st_offset = last_mod_stack + 2 - (uint8_t*)special_stack;
 	//PRINTF("stack size: %u\r\n", stack_size);
@@ -310,7 +352,7 @@ void checkpoint() {
 
 	// copy the sp as well
 	curctx->special_sp = special_sp;
-//	curctx->stack_tracer = stack_tracer;
+	//	curctx->stack_tracer = stack_tracer;
 
 	context_t *next_ctx;
 	next_ctx = (curctx == &context_0 ? &context_1 : &context_0 );
@@ -384,9 +426,6 @@ void restore_regs() {
 	}
 
 	if (isNoProgress) {
-		// it is stuck
-		// restore last passed chkpt
-		// TODO: This does not work!!!
 		mode_status = RECOVERY_MODE;
 	}
 	else {
@@ -408,10 +447,10 @@ void restore_regs() {
 	if (stack_size)
 		memcpy(((uint8_t*)special_stack) + st_offset, 
 				((uint8_t*)prev_ctx->special_stack) + st_offset, stack_size);
-//	unsigned stack_size = special_sp + 2 - (uint8_t*)special_stack;
-//	if (stack_size)
-//		memcpy(special_stack, 
-//				prev_ctx->special_stack, stack_size);
+	//	unsigned stack_size = special_sp + 2 - (uint8_t*)special_stack;
+	//	if (stack_size)
+	//		memcpy(special_stack, 
+	//				prev_ctx->special_stack, stack_size);
 
 #if 0 //case 2.
 	//chkpt_book[prev_reg[15]] = 0;
@@ -516,24 +555,3 @@ void check_before_write(uint8_t *addr) {
 	back_up(addr);
 	return;
 }
-
-/** @brief Entry point upon reboot */
-//int main() {
-//	init();
-//
-//	// restore on power failure
-//	restore();
-//	while (!program_end) {
-//		program_end = 1;
-//		((void (*)(void))(curctx->task))();
-//	}
-//	// jump to curctx
-//	//	__asm__ volatile ( // volatile because output operands unused by C
-//	//			"br %[nt]\n"
-//	//			: /* no outputs */
-//	//			: [nt] "r" (curctx->task)
-//	//			);
-//
-//	return 0; 
-//}
-
