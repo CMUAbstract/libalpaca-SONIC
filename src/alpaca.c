@@ -200,10 +200,10 @@ void end_run() {
 
 void binary_patch(unsigned c_cnt) {
 	// heuristic. if same 2 time
-	if (c_cnt == cur_hist->chkpt_prev) {	
-		PRINTF("patching binary\r\n");
-		patch_checkpoints();
-	}
+//	if (c_cnt == cur_hist->chkpt_prev) {	
+//		PRINTF("patching binary\r\n");
+//		patch_checkpoints();
+//	}
 
 	chkpt_history* next_hist;
 	next_hist = (cur_hist == &hist0) ? &hist1 : &hist0;
