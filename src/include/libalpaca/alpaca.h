@@ -13,7 +13,8 @@
 typedef void (task_func_t)(void);
 typedef unsigned task_idx_t;
 
-extern void end_run();
+#define end_run() _kw_end_run()
+extern void _kw_end_run();
 extern unsigned chkpt_count;
 extern uint8_t mode_status;
 /** @brief Task */
@@ -74,7 +75,7 @@ void return_to_nvstack();
  */
 extern void init();
 
-void set_global_range(uint8_t* _start_addr, uint8_t* _end_addr, uint8_t* _start_addr_bak);
+void set_global_range(uint8_t* _start_addr, uint8_t* _end_addr);
 void task_prologue();
 void transition_to(void (*task)());
 void write_to_gbuf(uint8_t *data_src, uint8_t *data_dest, size_t var_size); 

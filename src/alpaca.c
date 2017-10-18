@@ -19,6 +19,7 @@
 #define PACK_BYTE 4
 
 __nv uint8_t* backup[MAX_TRACK];
+__nv uint8_t backup_data[MAX_TRACK*PACK_BYTE];
 // TODO: This can be uint8_t
 //__nv unsigned backup_size[MAX_TRACK];
 //__nv unsigned backup_bitmask[BITMASK_SIZE]={0};
@@ -38,7 +39,7 @@ __nv volatile unsigned regs_1[16];
 // temp
 __nv uint32_t chkpt_cutvar[55] = {0x66666666};
 __nv vars var_record[VAR_NUM] = {{.cutted_num = 0x5555, 
-																	.nopable_address = 0x5555}};
+	.nopable_address = 0x5555}};
 
 // temp size
 __nv uint8_t* nvstack[100];
@@ -138,10 +139,11 @@ void patch_checkpoints() {
  * ideally, it is enough to be called only once, however, currently it is called at the beginning of task_0
  * it can be optimized. (i.e., it needs not be set at runtime)
  */
-void set_global_range(uint8_t* _start_addr, uint8_t* _end_addr, uint8_t* _start_addr_bak) {
+void set_global_range(uint8_t* _start_addr, uint8_t* _end_addr) {
+//void set_global_range(uint8_t* _start_addr, uint8_t* _end_addr, uint8_t* _start_addr_bak) {
 	start_addr = _start_addr;
 	end_addr = _end_addr;
-	offset = _start_addr - _start_addr_bak;
+	//offset = _start_addr - _start_addr_bak;
 	// sanity check
 	// TODO: offset calculation can be removed
 #if 0 // TEMP disable
@@ -186,7 +188,7 @@ __nv chkpt_history* cur_hist = &hist0;
 void update_checkpoints_pair();
 void checkpoint();
 
-void end_run() {
+void _kw_end_run() {
 	cur_hist->needUpdate = 1;
 	chkpt_count = 0;
 	chkpt_i = 0;
@@ -194,16 +196,18 @@ void end_run() {
 	chkpt_iterator = 0;
 	chkpt_patching = 0;
 
-	checkpoint();
+	if (1)
+		checkpoint();
+
 	update_checkpoints_pair();
 }
 
 void binary_patch(unsigned c_cnt) {
 	// heuristic. if same 2 time
-//	if (c_cnt == cur_hist->chkpt_prev) {	
-//		PRINTF("patching binary\r\n");
-//		patch_checkpoints();
-//	}
+	//	if (c_cnt == cur_hist->chkpt_prev) {	
+	//		PRINTF("patching binary\r\n");
+	//		patch_checkpoints();
+	//	}
 
 	chkpt_history* next_hist;
 	next_hist = (cur_hist == &hist0) ? &hist1 : &hist0;
@@ -283,7 +287,7 @@ void restore() {
 	// restore NV globals
 	while (curctx->backup_index != 0) {
 		uint8_t* w_data_dest = backup[curctx->backup_index - 1];
-		uint8_t* w_data_src = w_data_dest - offset;
+		uint8_t* w_data_src = &backup_data[(curctx->backup_index-1)*PACK_BYTE];
 		//unsigned w_data_size = backup_size[curctx->backup_index - 1];
 		memcpy(w_data_dest, w_data_src, PACK_BYTE);
 		--(curctx->backup_index);
@@ -518,17 +522,18 @@ bool is_backed_up(uint8_t* addr) {
 void back_up(uint8_t* addr) {
 	// If backup array overflows, we consider it as a power failure.
 	if (curctx->backup_index == MAX_TRACK) {
+		PRINTF("overflow\r\n");
 		PMMCTL0 = PMMPW | PMMSWPOR;
 	}
 
 	//backup the pack
 	uint8_t* addr_aligned = (uint8_t*)((unsigned)addr & ~(PACK_BYTE - 1));
-	uint8_t* addr_bak = addr_aligned - offset;
-	memcpy(addr_bak, addr_aligned, PACK_BYTE);
+	memcpy(&backup_data[curctx->backup_index*PACK_BYTE], addr_aligned, PACK_BYTE);
 	//append dirtylist
 	//backup_size[curctx->backup_index] = size;
 	//backup[curctx->backup_index] = addr;
 	backup[curctx->backup_index] = addr_aligned;
+
 	curctx->backup_index++;
 
 	unsigned index = (unsigned)(addr - start_addr);
