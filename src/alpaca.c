@@ -15,7 +15,7 @@
 #define RECOVERY_MODE 0
 #define NORMAL_MODE 1
 
-#define MAX_TRACK 3000 // temp
+#define MAX_TRACK 4000 // temp
 #define PACK_BYTE 4
 
 __nv uint8_t* backup[MAX_TRACK];
