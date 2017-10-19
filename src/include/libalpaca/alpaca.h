@@ -9,11 +9,11 @@
 //#define CHKPT_NUM 65
 #define VAR_NUM 30
 #define NOP 0x43034303
-
+#define end_run() _kw_end_run()
 typedef void (task_func_t)(void);
 typedef unsigned task_idx_t;
 
-extern void end_run();
+extern void _kw_end_run();
 extern unsigned chkpt_count;
 extern uint8_t mode_status;
 /** @brief Task */

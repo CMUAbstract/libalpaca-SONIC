@@ -186,7 +186,7 @@ __nv chkpt_history* cur_hist = &hist0;
 void update_checkpoints_pair();
 void checkpoint();
 
-void end_run() {
+void _kw_end_run() {
 	cur_hist->needUpdate = 1;
 	chkpt_count = 0;
 	chkpt_i = 0;
