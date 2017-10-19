@@ -10,6 +10,7 @@
 #define VAR_NUM 30
 #define NOP 0x43034303
 #define end_run() _kw_end_run()
+#define SPECIAL_STACK_SIZE 200
 typedef void (task_func_t)(void);
 typedef unsigned task_idx_t;
 
@@ -40,7 +41,7 @@ typedef struct _context_t {
 	unsigned* cur_reg;
 	/** @brief indicate whether to jump to commit stage on power failure*/
 	volatile unsigned backup_index;	
-	uint8_t* special_stack[100];
+	uint8_t* special_stack[SPECIAL_STACK_SIZE];
 	uint8_t* special_sp;
 	uint8_t* stack_tracer;
 } context_t;

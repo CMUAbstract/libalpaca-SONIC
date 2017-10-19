@@ -41,10 +41,7 @@ __nv vars var_record[VAR_NUM] = {{.cutted_num = 0x5555,
 																	.nopable_address = 0x5555}};
 
 // temp size
-__nv uint8_t* nvstack[100];
-
-// temp size
-__nv unsigned special_stack[40];
+__nv unsigned special_stack[SPECIAL_STACK_SIZE];
 uint8_t* special_sp = ((uint8_t*)(&special_stack[0])) - 2;
 __nv uint8_t* stack_tracer = ((uint8_t*)(&special_stack[0])) - 2;
 
@@ -301,7 +298,7 @@ void checkpoint() {
 	/* When you call this function:
 	 * LR gets stored in Stack
 	 * R4 gets stored in Stack
-	 * Then 14 is added to SP (for local use)
+	 * Then 22 is added to SP (for local use)
 	 * R12 gets stored in Stack
 	 * SP gets saved to R4 */
 	// TODO: Nubers will change!
