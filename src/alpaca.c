@@ -16,7 +16,7 @@
 #define NORMAL_MODE 1
 
 #define MAX_TRACK 3000 // temp
-#define PACK_BYTE 4
+#define PACK_BYTE 32
 
 __nv uint8_t* backup[MAX_TRACK];
 // TODO: This can be uint8_t
@@ -57,6 +57,7 @@ __nv context_t * volatile curctx = &context_0;
 
 __nv uint8_t isNoProgress = 0;
 __nv uint8_t mode_status = NORMAL_MODE;
+__nv uint8_t chkpt_ever_taken = 0;
 //
 // testing
 //__nv uint8_t chkpt_status[CHKPT_NUM] = {1, 1, 0, 1, 1,     0, 1, 1, 1, 1,
@@ -71,7 +72,7 @@ __nv unsigned chkpt_iterator = 0;
 //__nv unsigned var_iterator = 0;
 __nv uint8_t chkpt_patching = 0;
 //__nv uint8_t logging_patching = 0;
-
+/*
 void patch_checkpoints() {
 	for (; chkpt_iterator < CHKPT_NUM; ++chkpt_iterator) {
 		// TODO: if CHKPT_NUM gets correctly set, you do not need this if
@@ -117,7 +118,7 @@ void patch_checkpoints() {
 	}
 	//	patch_logging();
 }
-
+*/
 //void patch_logging() {
 //	for (; var_iterator < VAR_NUM; ++var_iterator) {
 //		if (!var_record[var_iterator].cutted_num) {
@@ -137,7 +138,8 @@ void patch_checkpoints() {
  */
 void set_global_range(uint8_t* _start_addr, uint8_t* _end_addr, uint8_t* _start_addr_bak) {
 	start_addr = _start_addr;
-	end_addr = _end_addr;
+	//end_addr = _end_addr;
+	end_addr = start_addr + global_size - 2;
 	offset = _start_addr - _start_addr_bak;
 	// sanity check
 	// TODO: offset calculation can be removed
@@ -214,18 +216,18 @@ void update_checkpoints_pair() {
 	if (cur_hist->needUpdate) {
 		while (chkpt_i < CHKPT_NUM) {
 			if (chkpt_status[chkpt_i] == CHKPT_ACTIVE) {
-				if (chkpt_book[chkpt_i] < CHKPT_IMMORTAL) {
+//				if (chkpt_book[chkpt_i] < CHKPT_IMMORTAL) {
 					if (chkpt_book[chkpt_i] <= 0)
 						chkpt_status[chkpt_i] = CHKPT_USELESS;
 					else
 						chkpt_count++;
 					++chkpt_i;
 					chkpt_book[chkpt_i-1] = 0;
-				}
-				else {
-					chkpt_count++;
-					++chkpt_i;
-				}
+//				}
+//				else {
+//					chkpt_count++;
+//					++chkpt_i;
+//				}
 			}
 			else {
 				++chkpt_i;
@@ -246,7 +248,6 @@ void make_table(uint8_t* addr) {
 
 #if 1 // temp for debugging
 void clear_bitmask() {
-	//PRINTF("clear\r\n");
 	// TODO: what if it is too large for one E-cycle?
 	memset(backup_bitmask, 0, ((unsigned)((global_size+(PACK_BYTE -1))/PACK_BYTE))*sizeof(bitmask_counter));
 }
@@ -369,8 +370,9 @@ void checkpoint() {
 	}
 
 	// atomic update of curctx
-	isNoProgress = 0;
 	curctx = next_ctx;
+	isNoProgress = 0;
+	chkpt_ever_taken = 1;
 	stack_tracer = special_sp;
 
 	// TODO: Do not know for sure, doing conservative thing
@@ -397,7 +399,8 @@ void print_book() {
 void restore_regs() {
 	context_t* prev_ctx;
 	unsigned pc;
-	if (curctx->cur_reg == NULL) {
+//	if (curctx->cur_reg == NULL) {
+	if (!chkpt_ever_taken) {
 		curctx->cur_reg = regs_0;
 		return;
 	}
@@ -417,20 +420,22 @@ void restore_regs() {
 		//	// it couldn't checkpoint once. weird!!!
 		//}
 		chkpt_status[prev_ctx->cur_reg[15]] = CHKPT_ACTIVE;	
-		chkpt_book[prev_ctx->cur_reg[15]] = CHKPT_IMMORTAL;
+		chkpt_book[prev_ctx->cur_reg[15]] = 2;
+	//	chkpt_book[prev_ctx->cur_reg[15]] = CHKPT_IMMORTAL;
 
 		mode_status = NORMAL_MODE;
 	}
-
-	if (isNoProgress) {
-		mode_status = RECOVERY_MODE;
-	}
 	else {
-		if (chkpt_book[prev_ctx->cur_reg[15]] < CHKPT_IMMORTAL) {
-			chkpt_book[prev_ctx->cur_reg[15]] += 2;
+		if (isNoProgress) {
+			mode_status = RECOVERY_MODE;
 		}
-		if (chkpt_book[curctx->cur_reg[15]] < CHKPT_IMMORTAL) {
-			chkpt_book[curctx->cur_reg[15]]--;
+		else {
+	//		if (chkpt_book[prev_ctx->cur_reg[15]] < CHKPT_IMMORTAL) {
+				chkpt_book[prev_ctx->cur_reg[15]] += 2;
+	//		}
+	//		if (chkpt_book[curctx->cur_reg[15]] < CHKPT_IMMORTAL) {
+				chkpt_book[curctx->cur_reg[15]]--;
+	//		}
 		}
 	}
 	isNoProgress = 1;

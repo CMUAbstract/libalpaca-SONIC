@@ -17,6 +17,7 @@ typedef unsigned task_idx_t;
 extern void _kw_end_run();
 extern unsigned chkpt_count;
 extern uint8_t mode_status;
+extern uint8_t isNoProgress;
 /** @brief Task */
 //typedef struct {
 	/** @brief function address */
