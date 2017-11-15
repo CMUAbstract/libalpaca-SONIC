@@ -10,7 +10,7 @@
 #define VAR_NUM 30
 #define NOP 0x43034303
 #define end_run() _kw_end_run()
-#define SPECIAL_STACK_SIZE 200
+#define SPECIAL_STACK_SIZE 300
 typedef void (task_func_t)(void);
 typedef unsigned task_idx_t;
 
@@ -18,6 +18,7 @@ extern void _kw_end_run();
 extern unsigned chkpt_count;
 extern uint8_t mode_status;
 extern uint8_t isNoProgress;
+extern uint8_t* stack_tracer;
 /** @brief Task */
 //typedef struct {
 	/** @brief function address */
@@ -56,7 +57,7 @@ typedef struct _context_t {
 extern volatile unsigned _numBoots;
 extern volatile unsigned num_dirty_gv;
 extern context_t * volatile curctx;
-extern int chkpt_book[];
+extern int8_t chkpt_book[];
 extern uint8_t chkpt_status[];
 extern chkpt_info chkpt_list[];
 extern uint8_t backup_bitmask[];
