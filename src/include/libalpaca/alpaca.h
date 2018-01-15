@@ -8,12 +8,22 @@
 typedef void (task_func_t)(void);
 typedef unsigned task_idx_t;
 
+#define SCRATCH_SIZE 0x10
+
+#define CUR_TASK (curctx->task)
+#define CUR_INFO (curctx->task->info)
+
 /** @brief Task */
-typedef struct {
+typedef struct task_t {
 	/** @brief function address */
 	task_func_t *func;
 	/** @brief index (only used for showing progress) */
 	task_idx_t idx;
+	/** @brief helpful for keeping track of state and return task */
+	struct {
+		unsigned int scratch[SCRATCH_SIZE];
+		struct task_t *return_task;
+	} info;
 } task_t;
 
 /** @brief Execution context */
@@ -56,11 +66,10 @@ void write_to_gbuf(uint8_t *data_src, uint8_t *data_dest, size_t var_size);
  *
  */
 #define TASK(idx, func) \
-	void func(); \
 __nv task_t TASK_SYM_NAME(func) = { func, idx }; \
 
 /** @brief Macro for getting address of task */
-#define TASK_REF(func) &TASK_SYM_NAME(func)
+#define TASK_REF(func) (&TASK_SYM_NAME(func))
 
 /** @brief First task to run when the application starts
  *  @details Symbol is defined by the ENTRY_TASK macro.
@@ -88,6 +97,7 @@ extern task_t TASK_SYM_NAME(_entry_task);
  *           of the library.
  */
 #define ENTRY_TASK(task) \
+	void _entry_task(); \
 	TASK(0, _entry_task) \
 void _entry_task() { TRANSITION_TO(task); }
 
