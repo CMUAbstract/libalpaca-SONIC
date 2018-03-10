@@ -59,7 +59,7 @@ void write_to_gbuf(uint8_t *data_src, uint8_t *data_dest, size_t var_size);
 /** @brief Internal macro for constructing name of task symbol */
 #define TASK_SYM_NAME(func) _task_ ## func
 
-/** @brief Declare a task
+/** @brief Define a task
  *
  *  @param idx      Global task index, zero-based
  *  @param func     Pointer to task function
@@ -67,6 +67,14 @@ void write_to_gbuf(uint8_t *data_src, uint8_t *data_dest, size_t var_size);
  */
 #define TASK(idx, func) \
 __nv task_t TASK_SYM_NAME(func) = { func, idx }; \
+
+/** @brief Declare a task
+ *
+ *  @param func     Pointer to task function
+ *
+ */
+#define TASK_DEC(func) \
+task_t TASK_SYM_NAME(func); \
 
 /** @brief Macro for getting address of task */
 #define TASK_REF(func) (&TASK_SYM_NAME(func))
