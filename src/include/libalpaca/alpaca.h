@@ -73,8 +73,7 @@ __nv task_t TASK_SYM_NAME(func) = { func, idx }; \
  *  @param func     Pointer to task function
  *
  */
-#define TASK_DEC(func) \
-task_t TASK_SYM_NAME(func); \
+#define TASK_DEC(func) task_t TASK_SYM_NAME(func)
 
 /** @brief Macro for getting address of task */
 #define TASK_REF(func) (&TASK_SYM_NAME(func))
