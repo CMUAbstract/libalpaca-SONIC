@@ -4,6 +4,8 @@
 
 #include <libalpaca/alpaca.h>
 
+__nv uint16_t scratch_bak[SCRATCH_SIZE];
+
 /**
  * @brief dirtylist to save src address
  */

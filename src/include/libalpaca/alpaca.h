@@ -12,6 +12,7 @@ typedef unsigned task_idx_t;
 
 #define CUR_TASK (curctx->task)
 #define CUR_INFO (curctx->task->info)
+#define CUR_SCRATCH (curctx->task->info.scratch)
 
 /** @brief Task */
 typedef struct task_t {
@@ -34,6 +35,7 @@ typedef struct _context_t {
 	uint8_t needCommit;
 } context_t;
 
+extern uint16_t scratch_bak[SCRATCH_SIZE];
 extern uint8_t* data_src[];
 extern uint8_t* data_dest[];
 extern unsigned data_size[];
