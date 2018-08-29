@@ -1,6 +1,5 @@
 #include <stdarg.h>
 #include <string.h>
-#include <msp430.h>
 
 #include <libalpaca/alpaca.h>
 
@@ -98,8 +97,8 @@ void transition_to(task_t *next_task)
 	task_prologue();
 	// jump to next tast
 	__asm__ volatile ( // volatile because output operands unused by C
-			"mov #0x2400, r1\n"
-			"br %[ntask]\n"
+			"li sp, 0x80040410\n" // Should clobber the stack
+			"jr %[ntask]\n"
 			:
 			: [ntask] "r" (next_task->func)
 			);
@@ -130,7 +129,7 @@ int main() {
 
 	// jump to curctx
 	__asm__ volatile ( // volatile because output operands unused by C
-			"br %[nt]\n"
+			"jr %[nt]\n"
 			: /* no outputs */
 			: [nt] "r" (curctx->task->func)
 			);

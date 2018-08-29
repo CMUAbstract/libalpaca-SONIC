@@ -2,7 +2,7 @@ LIB = libalpaca
 
 OBJECTS = alpaca.o
 
-DEPS = libio libmsp
+DEPS = libio libfemto
 
 override SRC_ROOT = ../../src
 

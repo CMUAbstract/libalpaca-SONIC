@@ -3,7 +3,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
-#include <libmsp/mem.h>
+#include <libfemto/femto.h>
 
 typedef void (task_func_t)(void);
 typedef unsigned task_idx_t;
