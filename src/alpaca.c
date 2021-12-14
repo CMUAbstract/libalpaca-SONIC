@@ -9,15 +9,15 @@ __nv uint16_t scratch_bak[SCRATCH_SIZE];
 /**
  * @brief dirtylist to save src address
  */
-__nv uint8_t** data_src_base = &data_src;
+__nv uint8_t** data_src_base = (uint8_t**) &data_src;
 /**
  * @brief dirtylist to save dst address
  */
-__nv uint8_t** data_dest_base = &data_dest;
+__nv uint8_t** data_dest_base = (uint8_t**) &data_dest;
 /**
  * @brief dirtylist to save size
  */
-__nv unsigned* data_size_base = &data_size;
+__nv unsigned* data_size_base = (unsigned*) &data_size;
 
 /**
  * @brief var to iterate over dirtylist
