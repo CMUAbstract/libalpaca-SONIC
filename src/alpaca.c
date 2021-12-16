@@ -122,16 +122,17 @@ void write_to_gbuf(uint8_t *data_src, uint8_t *data_dest, size_t var_size)
 /** @brief Entry point upon reboot */
 int main() {
 	_init();
-
-	// (better alternative: transition_to(curctx->task);
-
+     
+	transition_to(curctx->task);
+/*
 	// check for update
 	task_prologue();
 
 	// jump to curctx
 	__asm__ volatile ( // volatile because output operands unused by C
 			"br %[nt]\n"
-			: /* no outputs */
+			: // no outputs 
 			: [nt] "r" (curctx->task->func)
 			);
+*/
 }
