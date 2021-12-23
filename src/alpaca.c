@@ -123,8 +123,8 @@ void write_to_gbuf(uint8_t *data_src, uint8_t *data_dest, size_t var_size)
 int main() {
 	_init();
      
-	transition_to(curctx->task);
-/*
+	//transition_to(curctx->task);
+
 	// check for update
 	task_prologue();
 
@@ -134,5 +134,5 @@ int main() {
 			: // no outputs 
 			: [nt] "r" (curctx->task->func)
 			);
-*/
+
 }
